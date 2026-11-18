@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Make anime-style magic circles in 2D and 3D. Free to play, with Pro video and 3D exports.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%27-12 -12 24 24%27%3E%3Cpath fill=%27%23c9a8ff%27 d=%27M0-11L2.6-6.3 7.8-7.8 6.3-2.6 11 0 6.3 2.6 7.8 7.8 2.6 6.3 0 11-2.6 6.3-7.8 7.8-6.3 2.6-11 0-6.3-2.6-7.8-7.8-2.6-6.3Z%27/%3E%3C/svg%3E">
 </head>
 <body>
 <title>Circle Maker</title>
@@ -249,7 +250,7 @@ const RING_DURS=[N72,N66,N42,N33,N21,N13,N11]; // seconds per turn, outer to inn
 const LAYER_Z=16; // 3D depth between rings
 
 let S={seed:'AZ7-KQ2-VEL',element:'Lightning',purpose:'Summoning',effects:['Summon','Seal'],buffs:['Haste'],debuffs:['Slow'],power:5,rings:7,sym:6,points:7,glow:5,fractal:0,style:'glow',script:'gibberish',hue:null,motion:'none'};
-const ui={animate:true,speed:1,powerMax:store.get('power13',false)?13:7};
+const ui={animate:true,speed:1,powerMax:store.get('power13',false)?13:7,seedT:0};
 const fx={pal:null,gold:false,reverse:false,over9000:false};
 let lastBuild=null;
 
@@ -382,15 +383,16 @@ function build(st){
     }
     layers.push({items:it,dir:dirs[i]*(fx.reverse?-1:1),dur:RING_DURS[i%N7],z:i*LAYER_Z});
   }
-  // fractal repeat: small circles at each star point, each holding smaller copies of itself
+  // fractal repeat: a sunflower of small circles. Seeds are born at the centre, each 137.5° (the golden angle)
+  // around from the last, and drift outward. Counts are Fibonacci numbers: 13, 21, 34.
   if(st.fractal>0){
-    const items=[],Rf=edges[1]-R*.12,base=R*.1;
+    const seed=[],base=R*[0,.085,.07,.058][st.fractal];
     const mini=(m,rad,depth,top)=>{const ww=Math.max(.35,sw*.8*rad/base);
-      items.push(C(rad,ww,P.acc,m,P.bg),{k:'p',d:polyD(pts,rad*.8,starK(pts),0),w:ww*.75,col:P.main,m});
-      if(top)items.push(C(rad*.62,ww*.6,P.main,m));
+      seed.push(C(rad,ww,P.acc,m,P.bg),{k:'p',d:polyD(pts,rad*.8,starK(pts),0),w:ww*.75,col:P.main,m});
+      if(top)seed.push(C(rad*.62,ww*.6,P.main,m));
       if(depth>1)for(let j=0;j<pts;j++){const[x,y]=P2(TOP+j/pts*2*Math.PI,rad*.8);mini(M.mul(m,M.tr(x,y)),rad*.3,depth-1,false);}};
-    for(let j=0;j<pts;j++){const[x,y]=P2(TOP+j/pts*2*Math.PI+Math.PI/pts,Rf);mini(M.tr(x,y),base,st.fractal,true);}
-    layers.push({items,dir:-.5,dur:N66,z:LAYER_Z*1.5});
+    mini(M.id(),base,Math.min(st.fractal,2),true);
+    layers.push({items:[],seed,phyllo:{N:[0,N13,N21,34][st.fractal],Rmax:R*.9},dir:0,dur:1,z:LAYER_Z*1.5});
   }
   const cr=coreItems(st,INNER*.82,P,sw,rngFrom('core|'+st.seed+'|'+st.element),alpha);
   layers.push({items:[{k:'t',r:INNER,w:sw*1.4,col:P.main,ph:r()*6.28,amt:.5},...cr.items],dir:cr.spin?.3:0,dur:N42,z:N*LAYER_Z+12});
@@ -401,6 +403,13 @@ function build(st){
   return{layers,P};
 }
 const isMaster=st=>st.buffs.length===N3&&st.debuffs.length===N3;
+// Vogel's sunflower model, animated: seed k sits at angle k·137.5° and radius √age, so new seeds push old ones outward.
+const GOLDEN=Math.PI*(3-Math.sqrt(5)),SEED_TRIP=N13; // seconds for a seed to travel from centre to edge
+function phyllo(P,i,t){
+  const c=t*P.N/SEED_TRIP,k=i+P.N*Math.floor((c-i)/P.N),age=c-k,u=age/P.N,r=P.Rmax*Math.sqrt(u),a=k*GOLDEN;
+  const e=x=>{x=Math.min(1,Math.max(0,x));return x*x*(3-2*x);},s=(.3+.7*Math.sqrt(u))*e(age/1.2)*e((P.N-age)/1.6);
+  return{x:Math.cos(a)*r,y:Math.sin(a)*r,s:Math.max(s,1e-4)};
+}
 
 // ---------- 2D: shapes to SVG ----------
 function itemSVG(it){
@@ -414,7 +423,9 @@ function itemSVG(it){
   return '';
 }
 function toSVG(B,st){
-  const P=B.P,body=B.layers.map(L=>{const spin=L.dir?` class="ring" style="animation-duration:${(L.dur/ui.speed/Math.abs(L.dir)).toFixed(1)}s;animation-direction:${L.dir>0?'normal':'reverse'}"`:'';return `<g${spin}>${L.items.map(itemSVG).join('')}</g>`;}).join('');
+  const P=B.P,body=B.layers.map(L=>{
+    if(L.phyllo){const inner=L.seed.map(itemSVG).join('');let s='';for(let i=0;i<L.phyllo.N;i++){const q=phyllo(L.phyllo,i,ui.seedT);s+=`<g class="seed" transform="translate(${q.x.toFixed(1)} ${q.y.toFixed(1)}) scale(${q.s.toFixed(3)})">${inner}</g>`;}return `<g>${s}</g>`;}
+    const spin=L.dir?` class="ring" style="animation-duration:${(L.dur/ui.speed/Math.abs(L.dir)).toFixed(1)}s;animation-direction:${L.dir>0?'normal':'reverse'}"`:'';return `<g${spin}>${L.items.map(itemSVG).join('')}</g>`;}).join('');
   const defs=`<defs><filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="${(st.glow*.9).toFixed(1)}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="ink"><feTurbulence type="fractalNoise" baseFrequency="0.033" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="4"/></filter></defs>`;
   return `${defs}<rect id="bg" x="-500" y="-500" width="1000" height="1000" fill="${P.bg}"/><g${st.glow>0?' filter="url(#glow)"':''}><g${P.ink?' filter="url(#ink)"':''}>${body}</g></g>`;
 }
@@ -472,11 +483,13 @@ function dissolveMaterial(col,st){
 }
 function buildModel(B,st,{plain=false}={}){
   const root=new THREE.Group();root.name='MagicCircle';const groups=[];
-  B.layers.forEach((L,li)=>{const g=new THREE.Group();g.name='ring_'+li;const accs=new Map(),mats=[];L.items.forEach(it=>item3D(accs,it));
+  B.layers.forEach((L,li)=>{const g=new THREE.Group();g.name=L.phyllo?'seeds':'ring_'+li;const accs=new Map(),mats=[],parts=[];(L.phyllo?L.seed:L.items).forEach(it=>item3D(accs,it));
     accs.forEach((a,col)=>{if(!a.i.length)return;const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(a.p,3));geo.setAttribute('normal',new THREE.Float32BufferAttribute(a.n,3));geo.setIndex(a.i);
-      const mt=plain?new THREE.MeshStandardMaterial({color:toColor(col),emissive:toColor(col),emissiveIntensity:.18+st.glow*.05,metalness:.3,roughness:.38}):dissolveMaterial(col,st);mats.push(mt);
-      const mesh=new THREE.Mesh(geo,mt);mesh.name=g.name+'_'+col.replace(/[^a-z0-9]/gi,'');g.add(mesh);});
-    g.position.z=L.z;g.userData={dir:L.dir,dur:L.dur,z0:L.z,mats};root.add(g);groups.push(g);});
+      const mt=plain?new THREE.MeshStandardMaterial({color:toColor(col),emissive:toColor(col),emissiveIntensity:.18+st.glow*.05,metalness:.3,roughness:.38}):dissolveMaterial(col,st);mats.push(mt);parts.push([geo,mt,col]);});
+    if(L.phyllo){for(let i=0;i<L.phyllo.N;i++){const sg=new THREE.Group();sg.name='seed_'+i;parts.forEach(([geo,mt,col])=>{const m=new THREE.Mesh(geo,mt);m.name=sg.name+'_'+col.replace(/[^a-z0-9]/gi,'');sg.add(m);});
+        const q=phyllo(L.phyllo,i,0);sg.position.set(q.x,-q.y,0);sg.scale.setScalar(q.s);g.add(sg);}}
+    else parts.forEach(([geo,mt,col])=>{const m=new THREE.Mesh(geo,mt);m.name=g.name+'_'+col.replace(/[^a-z0-9]/gi,'');g.add(m);});
+    g.position.z=L.z;g.userData={dir:L.dir,dur:L.dur,z0:L.z,mats,phyllo:L.phyllo||null};root.add(g);groups.push(g);});
   return{root,groups};
 }
 // ---------- 3D motion: every style loops over 7 seconds, rings staggered outer to inner ----------
@@ -524,7 +537,8 @@ class Engine{
   }
   resize(w,h){this.w=w;this.h=h;this.r.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(this.composer)this.composer.setSize(w,h);}
   frame(t){const mo=S.motion||'none',p=((t/MOTION_T)%1+1)%1,L=this.groups.length;
-    this.groups.forEach((g,i)=>{const d=g.userData;g.rotation.z=d.dir?-Math.sign(d.dir)*Math.abs(d.dir)*2*Math.PI*t/d.dur:0;applyMotion(g,mo,p,L>1?i/(L-1):0,i,t);});if(this.composer)this.composer.render();else this.r.render(this.scene,this.camera);}
+    this.groups.forEach((g,i)=>{const d=g.userData;g.rotation.z=d.dir?-Math.sign(d.dir)*Math.abs(d.dir)*2*Math.PI*t/d.dur:0;applyMotion(g,mo,p,L>1?i/(L-1):0,i,t);
+      if(d.phyllo)g.children.forEach((sg,j)=>{const q=phyllo(d.phyllo,j,t);sg.position.set(q.x,-q.y,0);sg.scale.setScalar(q.s);});});if(this.composer)this.composer.render();else this.r.render(this.scene,this.camera);}
   disposeScene(){if(!this.scene)return;this.scene.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose();});this.scene=null;}
   dispose(){this.disposeScene();this.r.dispose();this.r.forceContextLoss();}
 }
@@ -720,7 +734,7 @@ function lessons(st){
   else if(p===6)out.push('The star is a hexagram, written {6/2}. Because 6 and 2 share a factor, it is really two overlapping triangles: the shape known as the Seal of Solomon and the Star of David.');
   else{const g=gcd(p,k);out.push(`The star is a ${STAR_NAMES[p]}, written {${p}/${k}}: put ${p} points on a circle and join every ${ORD(k)} one.${g>1?` Because ${p} and ${k} share a factor, it splits into ${g} separate shapes.`:' This notation is called a Schläfli symbol.'}`);}
   out.push(ELEMENT_LESSON[st.element]||'');
-  if(st.fractal>0)out.push('Fractal repeat makes the circle self-similar: copies inside copies. Benoit Mandelbrot coined the word “fractal” in 1975, from the Latin fractus, “broken.”');
+  if(st.fractal>0)out.push(`The small circles grow like seeds in a sunflower: each is placed 137.5° from the last (the golden angle, 360° ÷ φ²) and drifts outward, so they never line up. Sunflower spirals come in Fibonacci numbers, like the ${[0,13,21,34][st.fractal]} seeds here. Each seed is also a smaller copy of the circle, which is what makes it fractal.`);
   else if(st.motion&&st.motion!=='none')out.push(MOTION_LESSON[st.motion]);
   else{const r=rngFrom('lesson|'+st.seed);out.push(pick(r,[
     [3,4,6].includes(st.sym)?`The circle has ${st.sym}-fold symmetry, one of the few kinds a repeating floor tiling can have (only 2, 3, 4 and 6-fold work).`:`The circle has ${st.sym}-fold symmetry. Repeating floor tilings can only have 2, 3, 4 or 6-fold symmetry, which is why ${st.sym}-fold patterns look rare. Quasicrystals, found by Dan Shechtman in 1982, broke the rule in real matter.`,
@@ -739,6 +753,11 @@ function setMotion(m){pushHist();S.motion=m;syncUI();saveHash();updateLore();if(
 
 // ---------- render ----------
 const svg=$('#circle');
+// 2D seed flow: moves the sunflower seeds every frame (only the few seed groups, never a rebuild)
+let seedEls=[],seedLast=performance.now();
+(function seedLoop(t){const dt=Math.min(.1,(t-seedLast)/1000);seedLast=t;if(ui.animate)ui.seedT+=dt*ui.speed;
+  if(!v3.on&&seedEls.length&&lastBuild){const L=lastBuild.layers.find(l=>l.phyllo);if(L)seedEls.forEach((g,i)=>{const q=phyllo(L.phyllo,i,ui.seedT);g.setAttribute('transform',`translate(${q.x.toFixed(1)} ${q.y.toFixed(1)}) scale(${q.s.toFixed(3)})`);});}
+  requestAnimationFrame(seedLoop);})(performance.now());
 function render(){
   fx.reverse=S.effects.length===6&&S.sym===6;
   lastBuild=build(S);const P=lastBuild.P;
@@ -748,6 +767,7 @@ function render(){
   st.classList.toggle('prismatic',!!P.prism);st.classList.toggle('cursed',S.rings>=N13);
   const sig=sigilOf(S.seed);let name=sig?`Named Sigil ${sig.idx} of 72 · ${sig.name}`:spellName(S);if(isMaster(S))name='Master Seal · '+name;
   $('#spellName').textContent=name;$('#spellSub').textContent=[S.element,S.purpose,...S.effects].join(' · ');
+  seedEls=[...svg.querySelectorAll('.seed')];
   syncUI();scriptPreview();saveHash();refresh3D();updateLore();
   if(S.sym===N11)egg('eleven','This one goes to eleven.');
   if(S.rings>=N13)egg('cursed','Thirteen rings. Something is wrong.');
@@ -768,7 +788,7 @@ function syncUI(){
   $('#sym').value=S.sym;$('#symVal').textContent=S.sym===N11?'11-fold · one louder':S.sym+'-fold';
   $('#points').value=S.points;$('#pointsVal').textContent=S.points+' points';
   $('#glow').value=S.glow;$('#glowVal').textContent=S.glow===0?'Off':S.glow>=N13?'13 · supernova':S.glow;
-  $('#fractal').value=S.fractal;$('#fractalVal').textContent=['Off','1 level','2 levels','3 levels'][S.fractal];
+  $('#fractal').value=S.fractal;$('#fractalVal').textContent=['Off','13 seeds','21 seeds','34 seeds'][S.fractal];
   $('#autoHue').checked=S.hue==null;$('#hueBox').style.display=S.hue==null?'none':'';$('#hue').value=S.hue??0;$('#hueVal').textContent=S.hue??'';
   $('#anim').classList.toggle('on',ui.animate);$('#speed').textContent=`Spin ${ui.speed}×`;$('#view3d').classList.toggle('on',v3.on);$('#view3d').textContent=v3.on?'2D':'3D';
   $('#styles').innerHTML=Object.entries(STYLES).map(([k,v])=>{const p=palette({...S,style:k});return `<button class="style${k==='prismatic'?' secret':''}${S.style===k?' on':''}" data-style="${k}"><div class="sw" style="background:${p.bg}"><svg viewBox="-50 -50 100 100" width="46" height="46" aria-hidden="true"${k==='prismatic'?' style="filter:hue-rotate(90deg)"':''}><circle r="44" fill="none" stroke="${p.main}" stroke-width="3"/><circle r="34" fill="none" stroke="${p.acc}" stroke-width="1.5"/><path d="${polyD(6,34,2,0)}" fill="none" stroke="${p.main}" stroke-width="2"/></svg></div>${v}</button>`;}).join('');
