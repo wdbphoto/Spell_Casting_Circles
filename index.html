@@ -1,0 +1,1277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Make anime-style magic circles in 2D and 3D. Free to play, with Pro video and 3D exports.">
+</head>
+<body>
+<title>Circle Maker</title>
+<style>
+/* The numbers: 3 5 7 11 13 21 33 42 66 72. They are everywhere. Do not question the numbers. */
+/* One deliberate dark look (a summoning chamber), so a single dark palette on :root. */
+:root{--bg:#0b0c12;--panel:#12141d;--card:#1a1d28;--line:#2a2e3d;--text:#eceef5;--muted:#8f95a8;--accent:#c9a8ff;--accent-ink:#160c26;--stage:#07080d;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+body{display:flex;flex-direction:column}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:disabled{opacity:.5;cursor:default}
+.btn{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 13px;font-weight:600;white-space:nowrap}
+.btn:hover{border-color:#3d4357}
+.btn.primary,.btn.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+header{flex:none;min-height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;user-select:none;cursor:default}
+.logo svg{width:22px;height:22px}
+.mid,.act{display:flex;gap:8px;align-items:center}
+.seed{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:0 10px}
+.seed label{color:var(--muted);font-size:12px}
+.seed input{background:none;border:0;color:var(--text);font:600 13px ui-monospace,Menlo,monospace;width:118px;padding:8px 0;outline:none;text-transform:uppercase}
+main{display:grid;grid-template-columns:320px 1fr 300px;flex:1;min-height:0}
+.panel{background:var(--panel);overflow-y:auto;padding:18px 20px 40px}
+#left{border-right:1px solid var(--line)} #right{border-left:1px solid var(--line)}
+.ptitle{font-weight:800;font-size:15px} .psub{color:var(--muted);font-size:12px;margin-bottom:16px}
+.sec{margin-bottom:20px}
+.sec h3,.xsec h3{font-size:11px;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;font-weight:700}
+.lbl{font-size:12px;color:var(--muted);margin:10px 0 6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600}
+.chip.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.chip.secret{display:none;border-style:dashed}
+.unlocked .chip.secret{display:inline-block}
+select,.inc{width:100%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 10px;font:inherit}
+.slider{margin:12px 0}
+.slider .row{display:flex;justify-content:space-between;font-weight:600;margin-bottom:6px}
+.slider .val{color:var(--muted);font-weight:500;user-select:none;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.check{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+#stage{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:18px;overflow-x:hidden;overflow-y:auto;background:var(--stage);transition:background .6s,color .6s;padding:16px}
+#wrap{width:min(92%,calc(100vh - 330px));min-width:min(92%,300px);aspect-ratio:1;max-width:100%;position:relative;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+#circle{width:100%;height:100%;display:block;overflow:visible}
+#c3d{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;
+  /* fade the edges so glow haze never shows a square seam against the stage */
+  -webkit-mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent),linear-gradient(to bottom,transparent,#000 7%,#000 93%,transparent);-webkit-mask-composite:source-in;
+  mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent),linear-gradient(to bottom,transparent,#000 7%,#000 93%,transparent);mask-composite:intersect}
+#c3d:active{cursor:grabbing}
+.ring{transform-box:view-box;transform-origin:0 0;animation:spin linear infinite} /* viewBox is centred on 0,0 */
+@keyframes spin{to{transform:rotate(360deg)}}
+.paused .ring{animation-play-state:paused}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px;color:var(--text)}
+.title{text-align:center} .title b{font-size:22px;letter-spacing:-.01em;display:block} .title span{opacity:.65;font-size:13px}
+.hint3d{font-size:12px;opacity:.6;margin-top:-8px}
+.lore{margin:-4px 0 0;max-width:48ch;text-align:center;padding:0 8px}
+.lore blockquote{margin:0;font:italic 15px/1.45 Georgia,"Iowan Old Style","Times New Roman",serif;opacity:.92;text-wrap:balance}
+.lore blockquote::before{content:"“"} .lore blockquote::after{content:"”"}
+.lore figcaption{font-size:12px;opacity:.6;margin-top:4px}
+.lore details{margin-top:8px;font-size:13px;text-align:left}
+.lore summary{cursor:pointer;text-align:center;opacity:.8;font-weight:600}
+.lore ul{margin:8px 0 0;padding-left:18px;display:grid;gap:6px;opacity:.9;max-height:26vh;overflow-y:auto}
+.styles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.style{border:1px solid var(--line);border-radius:10px;padding:8px;text-align:left;background:var(--card);font-size:12px;font-weight:600}
+.style .sw{height:54px;border-radius:7px;margin-bottom:6px;display:grid;place-items:center}
+.style.on{outline:2px solid var(--accent)}
+.style.secret{display:none} .unlocked2 .style.secret{display:block}
+.preview{background:var(--card);border-radius:10px;padding:8px;margin-top:8px}
+.foot{color:var(--muted);font-size:11px;margin-top:24px;user-select:none}
+#toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:#1f2230;border:1px solid var(--line);padding:10px 16px;border-radius:12px;opacity:0;transition:.3s;pointer-events:none;z-index:70;max-width:90vw;text-align:center;font-weight:600}
+#toast.show{opacity:1;transform:translateX(-50%)}
+.overlay{position:fixed;inset:0;background:rgba(3,3,8,.78);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+.overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;width:min(620px,100%);max-height:92vh;overflow:auto}
+.modal h2{margin:0 0 4px;font-size:18px}
+.mhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.xsec{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
+.xrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.xrow select{width:auto;min-width:120px}
+.xnote{color:var(--muted);font-size:12px;margin-top:8px}
+#xprog{margin-top:14px;font-weight:600;min-height:1.4em}
+.tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.06em;background:#e6b84a;color:#241a05;vertical-align:1px}
+.prolist{margin:4px 0 14px;padding-left:18px;display:grid;gap:6px}
+#proBtn.on{background:#e6b84a;color:#241a05}
+.modal details{margin-top:14px} .modal summary{cursor:pointer;font-weight:600;color:var(--text)}
+.foot a{color:var(--muted)}
+.bar{height:6px;border-radius:3px;background:var(--card);overflow:hidden;margin-top:6px} .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+#gameCanvas{width:min(440px,80vw);aspect-ratio:1;display:block;margin:8px auto;background:#07080d;border-radius:12px;touch-action:none}
+.codex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin:10px 0 18px}
+.egg{background:var(--card);border-radius:8px;padding:7px 9px;font-size:12px;font-weight:600} .egg.found{outline:1px solid var(--accent)} .egg small{display:block;color:var(--muted);font-weight:400}
+.sigils{display:grid;grid-template-columns:repeat(12,1fr);gap:3px}
+.sig{aspect-ratio:1;border-radius:4px;background:var(--card);font-size:9px;display:grid;place-items:center;color:var(--muted)} .sig.found{background:var(--accent);color:var(--accent-ink)}
+#tele{position:fixed;inset:0;z-index:60;display:none;background:#000}
+#tele.show{display:block;animation:fadein 1.3s}
+#tele svg{width:100%;height:100%;display:block}
+#tele .cap{position:absolute;left:0;right:0;bottom:8%;text-align:center;color:#fff;padding:0 16px}
+#tele .cap b{display:block;font-size:26px;margin-bottom:6px;text-shadow:0 2px 12px #000}
+#tele .cap span{color:#e0e0ea;display:block;margin-bottom:16px;text-shadow:0 1px 8px #000}
+@keyframes fadein{from{opacity:0;filter:blur(20px)}}
+/* ---- effects ---- */
+.shake{animation:shake .5s}
+@keyframes shake{20%{transform:translate(-9px,4px)}40%{transform:translate(7px,-6px)}60%{transform:translate(-5px,3px)}80%{transform:translate(3px,-2px)}}
+.charge #circle,.charge #c3d{animation:charge 1.3s ease}
+@keyframes charge{40%{transform:scale(.93);filter:brightness(.7)}70%{transform:scale(1.06);filter:brightness(2.1)}}
+.burst{position:absolute;border-radius:50%;border:3px solid currentColor;pointer-events:none;animation:burst 1s ease-out forwards}
+@keyframes burst{from{opacity:1;transform:translate(-50%,-50%) scale(.2)}to{opacity:0;transform:translate(-50%,-50%) scale(1.6)}}
+.cursed #circle,.cursed #c3d{animation:glitch 2.1s steps(1) infinite}
+@keyframes glitch{0%,100%{transform:none;filter:none}7%{transform:translate(4px,-2px) skewX(3deg);filter:hue-rotate(66deg)}8%{transform:none;filter:none}42%{transform:translate(-3px,1px);filter:invert(1)}43%{transform:none;filter:none}66%{transform:scale(1.02) skewY(-2deg)}67%{transform:none}}
+.levitate #wrap{animation:float 3.3s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-21px)}}
+.roll{animation:roll 1.3s ease-in-out}
+@keyframes roll{to{transform:rotate(360deg)}}
+.domain #wrap{animation:domain 4.2s ease forwards}
+@keyframes domain{20%,80%{transform:scale(1.9);filter:invert(1)}100%{transform:none;filter:none}}
+.push #wrap{animation:push 1.3s ease}
+@keyframes push{30%{transform:translateX(130%) rotate(33deg);opacity:0}31%{transform:translateX(-130%);opacity:0}100%{transform:none;opacity:1}}
+.prismatic #circle,.prismatic #c3d{animation:hue 13s linear infinite}
+@keyframes hue{to{filter:hue-rotate(360deg)}}
+.spinfast .ring{animation-duration:1.3s!important}
+.lumos #wrap{filter:brightness(1.7) saturate(1.3)}
+.nox #wrap{filter:brightness(.3)}
+.fly{position:absolute;left:-60px;width:42px;height:42px;border-radius:50%;pointer-events:none;animation:fly 1.1s ease-in forwards}
+@keyframes fly{to{left:calc(100% + 60px)}}
+.beam{position:absolute;top:42%;left:50%;height:66px;width:0;transform:translateY(-50%);border-radius:33px;pointer-events:none;animation:beam 2.1s ease-out forwards}
+@keyframes beam{30%{width:55%}80%{opacity:1}100%{width:55%;opacity:0}}
+.towel{position:absolute;top:20%;left:-80px;width:66px;height:42px;border-radius:4px;background:repeating-linear-gradient(90deg,#f3e9d2 0 11px,#7aa6d8 11px 15px);transform:rotate(-7deg);animation:towel 7s linear forwards;pointer-events:none}
+@keyframes towel{to{left:calc(100% + 80px);transform:rotate(33deg) translateY(66px)}}
+.tabs{display:none}
+@media (max-width:900px){
+  html,body{height:auto}
+  body{display:block}
+  header{flex-wrap:wrap;padding:10px 16px}
+  .mid{order:3;width:100%} .seed{flex:1} .seed input{width:100%}
+  main{display:flex;flex-direction:column;height:auto}
+  #stage{order:1;padding:16px 0 18px}
+  #wrap{width:min(88vw,460px)}
+  .tabs{order:2;display:flex;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+  .tabs button{flex:1;padding:12px;color:var(--muted);font-weight:600;border-bottom:2px solid transparent}
+  .tabs button.on{color:var(--text);border-color:var(--accent)}
+  .panel{order:3;border:0!important;display:none;padding:16px}
+  .panel.show{display:block}
+}
+@media (prefers-reduced-motion:reduce){.ring{animation:none}}
+</style>
+<header>
+  <div class="logo" id="logo"><svg viewBox="-12 -12 24 24" aria-hidden="true"><path fill="#c9a8ff" d="M0-11L2.6-6.3 7.8-7.8 6.3-2.6 11 0 6.3 2.6 7.8 7.8 2.6 6.3 0 11-2.6 6.3-7.8 7.8-6.3 2.6-11 0-6.3-2.6-7.8-7.8-2.6-6.3Z"/></svg>Circle Maker</div>
+  <div class="mid">
+    <div class="seed"><label for="seed">Seed</label><input id="seed" spellcheck="false" autocomplete="off" maxlength="42"></div>
+    <button class="btn" id="rand">Randomize</button><button class="btn" id="undo">Undo</button>
+  </div>
+  <div class="act"><button class="btn" id="proBtn" hidden>Get Pro</button><button class="btn" id="share">Share link</button><button class="btn primary" id="exportBtn">Export</button></div>
+</header>
+<main>
+  <aside class="panel show" id="left">
+    <div class="ptitle">Spell attributes</div><div class="psub">What the circle does</div>
+    <div class="sec"><h3>INCANTATION</h3><input class="inc" id="inc" placeholder="Speak a word of power… (Enter)" autocomplete="off" spellcheck="false" aria-label="Incantation"></div>
+    <div class="sec"><h3>ELEMENT</h3><div class="chips" id="elements"></div></div>
+    <div class="sec"><h3>PURPOSE</h3><select id="purpose" aria-label="Purpose"></select></div>
+    <div class="sec"><h3>EFFECTS</h3><div class="chips" id="effects"></div></div>
+    <div class="sec"><h3>BUFFS &amp; DEBUFFS</h3>
+      <div class="lbl">Buffs · clockwise rings</div><div class="chips" id="buffs"></div>
+      <div class="lbl">Debuffs · counter-clockwise rings</div><div class="chips" id="debuffs"></div>
+    </div>
+    <div class="sec"><h3>POWER</h3>
+      <div class="slider"><div class="row"><span>Power level</span><span class="val" id="powerVal"></span></div><input type="range" id="power" min="1" max="7" step="1" aria-label="Power level"></div>
+      <div class="slider"><div class="row"><span>Ring count</span><span class="val" id="ringsVal"></span></div><input type="range" id="rings" min="3" max="13" step="1" aria-label="Ring count"></div>
+      <div class="slider"><div class="row"><span>Symmetry</span><span class="val" id="symVal"></span></div><input type="range" id="sym" min="3" max="11" step="1" aria-label="Symmetry"></div>
+      <div class="slider"><div class="row"><span>Star point count</span><span class="val" id="pointsVal"></span></div><input type="range" id="points" min="3" max="13" step="1" aria-label="Star point count"></div>
+      <div class="slider"><div class="row"><span>Glow</span><span class="val" id="glowVal"></span></div><input type="range" id="glow" min="0" max="13" step="1" aria-label="Glow"></div>
+      <div class="slider"><div class="row"><span>Fractal repeat</span><span class="val" id="fractalVal"></span></div><input type="range" id="fractal" min="0" max="3" step="1" aria-label="Fractal repeat"></div>
+    </div>
+  </aside>
+  <section id="stage">
+    <div id="wrap"><svg id="circle" viewBox="-500 -500 1000 1000" role="img" aria-label="Magic circle"></svg></div>
+    <div class="title"><b id="spellName"></b><span id="spellSub"></span></div>
+    <figure class="lore"><blockquote id="quote"></blockquote><figcaption id="quoteBy"></figcaption>
+      <details><summary>Why this shape?</summary><ul id="facts"></ul></details></figure>
+    <div class="toolbar"><button class="btn on" id="anim">Animate</button><button class="btn" id="speed">Spin 1×</button><button class="btn" id="view3d">3D</button><button class="btn primary" id="summon">Summon</button></div>
+    <div class="hint3d" id="hint3d" hidden>Drag to orbit · scroll or pinch to zoom</div>
+  </section>
+  <nav class="tabs"><button class="on" data-tab="left">Spell</button><button data-tab="right">Look</button></nav>
+  <aside class="panel" id="right">
+    <div class="ptitle">Look &amp; feel</div><div class="psub">How the circle is drawn</div>
+    <div class="sec"><h3>VISUAL STYLE</h3><div class="styles" id="styles"></div></div>
+    <div class="sec"><h3>3D MOTION</h3><div class="chips" id="motions"></div><div class="lbl">Loops every 7 seconds in the 3D view and in video exports</div></div>
+    <div class="sec"><h3>SCRIPT</h3><select id="script" aria-label="Glyph script"></select><div class="preview"><svg id="scriptPrev" viewBox="0 0 252 30" width="100%" height="30" aria-hidden="true"></svg></div></div>
+    <div class="sec"><h3>COLOR</h3>
+      <label class="check"><input type="checkbox" id="autoHue" checked> Auto palette from element</label>
+      <div class="slider" id="hueBox"><div class="row"><span>Hue</span><span class="val" id="hueVal"></span></div><input type="range" id="hue" min="0" max="359" aria-label="Hue"></div>
+    </div>
+    <div class="foot" id="ver">Circle Maker v0.72.33 · every circle is drawn from its seed<span id="privacyLink" hidden> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a></span></div>
+  </aside>
+</main>
+<div id="toast" role="status"></div>
+<div class="overlay" id="ov"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+<div id="tele"></div>
+
+<script>
+'use strict';
+// ============================================================
+//  THE NUMBERS. 3 5 7 11 13 21 33 42 66 72.
+// ============================================================
+const N3=3,N5=5,N7=7,N11=11,N13=13,N21=21,N33=33,N42=42,N66=66,N72=72;
+const ELSEWHERE_ODDS=10_000_000; // one in ten million
+const $=s=>document.querySelector(s);
+
+// ---------- utils ----------
+function hashStr(s){let h=1779033703^s.length;for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),3432918353);h=h<<13|h>>>19;}return()=>{h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return(h^=h>>>16)>>>0;};}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const rngFrom=s=>mulberry32(hashStr(s)());
+const store={get(k,d){try{const v=localStorage.getItem('cm_'+k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem('cm_'+k,JSON.stringify(v));}catch(e){}}};
+const pick=(r,a)=>a[Math.floor(r()*a.length)];
+function weighted(r,w){let t=0;for(const k in w)t+=w[k];let x=r()*t;for(const k in w){x-=w[k];if(x<=0)return k;}return Object.keys(w)[0];}
+const TOP=-Math.PI/2;
+const P2=(a,rad)=>[+(Math.cos(a)*rad).toFixed(2),+(Math.sin(a)*rad).toFixed(2)];
+const gcd=(a,b)=>b?gcd(b,a%b):a;
+const f2=v=>+(+v).toFixed(2);
+const ALPH='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function newSeed(){let s='';for(let i=0;i<9;i++){s+=ALPH[Math.random()*ALPH.length|0];if(i===2||i===5)s+='-';}return s;}
+const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+// 2D affine matrices [a,b,c,d,e,f], same meaning as SVG matrix()
+const M={id:()=>[1,0,0,1,0,0],
+  mul:(m,n)=>[m[0]*n[0]+m[2]*n[1],m[1]*n[0]+m[3]*n[1],m[0]*n[2]+m[2]*n[3],m[1]*n[2]+m[3]*n[3],m[0]*n[4]+m[2]*n[5]+m[4],m[1]*n[4]+m[3]*n[5]+m[5]],
+  rot:deg=>{const a=deg*Math.PI/180,c=Math.cos(a),s=Math.sin(a);return[c,s,-s,c,0,0];},
+  tr:(x,y)=>[1,0,0,1,x,y],sc:s=>[s,0,0,s,0,0]};
+const applyM=(m,x,y)=>[m[0]*x+m[2]*y+m[4],m[1]*x+m[3]*y+m[5]];
+const mscale=m=>Math.sqrt(Math.abs(m[0]*m[3]-m[1]*m[2]));
+
+// ---------- data ----------
+const ELEMENTS={Fire:{h:14,s:90,l:58},Water:{h:200,s:85,l:60},Wind:{h:150,s:60,l:62},Earth:{h:33,s:55,l:52},Lightning:{h:52,s:95,l:60},Light:{h:45,s:30,l:85},Shadow:{h:270,s:45,l:62},Void:{h:290,s:70,l:66}};
+const SECRET_ELEMENTS={Time:{h:180,s:30,l:70},Gravity:{h:240,s:60,l:66},Chaos:{h:330,s:90,l:62},Cosmos:{h:220,s:90,l:72}};
+const PURPOSES={Summoning:'Array',Warding:'Ward',Sealing:'Seal',Healing:'Bloom',Transmutation:'Circle',Divination:'Eye',Teleportation:'Gate',Cursing:'Hex'};
+const EFFECTS=['Barrier','Teleport','Heal','Seal','Summon','Curse','Bind','Reveal'];
+const BUFFS=['+ATK','+DEF','Haste','Regen','Focus','Luck'];
+const DEBUFFS=['Slow','Poison','Silence','Weaken','Blind','Doom'];
+const STYLES={glow:'Glowing summon',linework:'Clean linework',grimoire:'Grimoire ink',neon:'Neon sigil',prismatic:'Prismatic'};
+const STYLE_GLOW={glow:5,linework:0,grimoire:0,neon:11,prismatic:7};
+const SCRIPTS={gibberish:'Invented gibberish',runic:'Runic',alchemical:'Alchemical',celestial:'Celestial'};
+const SYL=['ka','zul','ren','ith','osh','va','thul','vel','mor','aeth','qua','syl','dra','nox','lum','ory','zha','kel','um','ra','xen'];
+const EFFECT_BIAS={Barrier:{double:3,ticks:2},Teleport:{orbits:4},Heal:{petals:4},Seal:{star:3,polygon:2},Summon:{glyph:3},Curse:{zigzag:4},Bind:{chain:4},Reveal:{rays:4}};
+const RING_DURS=[N72,N66,N42,N33,N21,N13,N11]; // seconds per turn, outer to inner
+const LAYER_Z=16; // 3D depth between rings
+
+let S={seed:'AZ7-KQ2-VEL',element:'Lightning',purpose:'Summoning',effects:['Summon','Seal'],buffs:['Haste'],debuffs:['Slow'],power:5,rings:7,sym:6,points:7,glow:5,fractal:0,style:'glow',script:'gibberish',hue:null,motion:'none'};
+const ui={animate:true,speed:1,powerMax:store.get('power13',false)?13:7};
+const fx={pal:null,gold:false,reverse:false,over9000:false};
+let lastBuild=null;
+
+// ---------- palette ----------
+const hs=(h,s,l)=>`hsl(${((Math.round(h)%360)+360)%360}, ${s}%, ${l}%)`;
+function palette(st){
+  const o=fx.pal;
+  if(o&&o.ink)return{bg:o.bg,main:o.ink,acc:o.ink};
+  const b=ELEMENTS[st.element]||SECRET_ELEMENTS[st.element]||ELEMENTS.Fire;
+  const h=o?o.h:(st.hue!=null?st.hue:b.h),s=o?o.s:b.s,l=o?o.l:b.l;let p;
+  switch(st.style){
+    case 'linework':p={bg:'#0d0f17',main:hs(h,Math.min(s,35),86),acc:hs(h,s,l)};break;
+    case 'grimoire':p={bg:'#e8dcc0',main:'#3a2716',acc:hs(h,50,30),ink:1};break;
+    case 'neon':p={bg:'#040406',main:hs(h,100,60),acc:hs(h+180,100,66)};break;
+    case 'prismatic':p={bg:'#06060b',main:hs(h,90,70),acc:hs(h+120,90,70),prism:1};break;
+    default:p={bg:hs(h,35,5),main:hs(h,s,l),acc:hs(h+N33,s,Math.min(l+12,90))};
+  }
+  if(o&&o.bg)p.bg=o.bg;
+  return p;
+}
+
+// ---------- glyphs ----------
+function glyphPath(r,script){ // drawn in a 10x14 box centred on 0,0
+  const X=[-4,0,4],Y=[-6,-2,2,6],pt=()=>X[r()*3|0]+' '+Y[r()*4|0];
+  const dot=(x,y)=>`M${x-1} ${y}a1 1 0 1 0 2 0a1 1 0 1 0-2 0`;
+  const f=v=>v.toFixed(1);let d='';
+  if(script==='runic'){
+    d+=`M${X[r()*3|0]} -6V6`;const k=1+(r()*3|0);
+    for(let i=0;i<k;i++){const a=pt(),b=pt();if(a!==b)d+=`M${a}L${b}`;}
+  }else if(script==='alchemical'){
+    const base=r()*3|0;
+    d+=base===0?'M-3.5 -1a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0':base===1?'M0 -6L4.5 2H-4.5Z':'M0 -6V6M-4 -1H4';
+    if(r()<.6)d+='M0 3V7M-2.5 5H2.5';if(r()<.4)d+=dot(0,-1);if(r()<.3)d+='M-4 -6H4';
+  }else if(script==='celestial'){
+    d+=r()<.6?`M${f(-3+r()*2)} -6a5.5 6 0 1 0 0 12a4 4.5 0 1 1 0-12`:'M-4 3Q0 -9 4 3';
+    if(r()<.7)d+='M2 -4l1 2l2 .5l-2 .5l-1 2l-1-2l-2-.5l2-.5z';if(r()<.5)d+=dot(-3+(r()*6|0),5);
+  }else{ // invented gibberish: loopy, anime-circle energy
+    d+=`M${f(-4+r()*3)} -6Q${f(r()*8-4)} 0 ${f(-3+r()*6)} 6`;
+    if(r()<.8)d+=`M-4 ${f(-2+r()*4)}Q0 ${f(-6+r()*12)} 4 ${f(-2+r()*4)}`;
+    if(r()<.4)d+=dot(3,-5);if(r()<.3)d+=`M-3 ${r()<.5?-6:6}H3`;
+  }
+  return d;
+}
+const makeAlphabet=(r,script,size=N21)=>Array.from({length:size},()=>glyphPath(r,script));
+function polyD(n,rad,k,rot){const g=gcd(n,k);let d='';for(let s=0;s<g;s++){for(let t=0;t<=n/g;t++){const v=(s+t*k)%n;const[x,y]=P2(TOP+rot+v/n*2*Math.PI,rad);d+=(t?'L':'M')+x+' '+y;}d+='Z';}return d;}
+function starD(p,ro,ri){let d='';for(let i=0;i<p*2;i++){const[x,y]=P2(TOP+i/(p*2)*2*Math.PI,i%2?ri:ro);d+=(i?'L':'M')+x+' '+y;}return d+'Z';}
+const circD=(x,y,r)=>`M${f2(x-r)} ${f2(y)}a${f2(r)} ${f2(r)} 0 1 0 ${f2(2*r)} 0a${f2(r)} ${f2(r)} 0 1 0 ${f2(-2*r)} 0Z`;
+const starK=p=>p>=5?Math.max(2,Math.floor((p-1)/2)):1;
+
+// ---------- the centre: element sigil + seeded variant, frame and accent ----------
+function coreItems(st,R0,P,sw,rng,alpha){
+  const out=[],col=P.acc,W=sw*1.3,pts=st.points,n=st.sym,el=st.element;
+  const frame=rng()*6|0,v=rng()*3|0,accent=rng()*3|0,r=frame?R0*.7:R0;
+  const p=(d,m,w=W)=>out.push({k:'p',d,w,col,m});
+  const c=(rad,m,w=W)=>out.push({k:'c',r:rad,w,col,m});
+  const e=(rx,ry,m,w=W)=>out.push({k:'e',rx,ry,w,col,m});
+  const dot=(x,y,rad)=>out.push({k:'c',r:rad,fill:col,m:M.tr(x,y)});
+  const tri=(up,rad)=>'M'+[0,1,2].map(i=>P2((up?TOP:-TOP)+i*2*Math.PI/3,rad).join(' ')).join('L')+'Z';
+  const flame=h=>`M0 ${f2(h*.78)}C${f2(-h*.78)} ${f2(h*.2)} ${f2(-h*.2)} ${f2(-h*.45)} 0 ${f2(-h)}C${f2(h*.2)} ${f2(-h*.45)} ${f2(h*.78)} ${f2(h*.2)} 0 ${f2(h*.78)}Z`;
+  const wave=(w,y)=>`M${f2(-w)} ${f2(y)}q${f2(w/3)} ${f2(-w/3)} ${f2(2*w/3)} 0t${f2(2*w/3)} 0t${f2(2*w/3)} 0`;
+  const drop=h=>`M0 ${f2(-h)}C${f2(h*.65)} ${f2(-h*.15)} ${f2(h*.65)} ${f2(h*.75)} 0 ${f2(h*.75)}C${f2(-h*.65)} ${f2(h*.75)} ${f2(-h*.65)} ${f2(-h*.15)} 0 ${f2(-h)}Z`;
+  const spiral=(rad,turns)=>{let d='';const K=Math.round(turns*24);for(let i=0;i<=K;i++){const t=i/K,[x,y]=P2(t*turns*2*Math.PI,rad*t);d+=(i?'L':'M')+x+' '+y;}return d;};
+  const bolt=s=>`M${f2(s*.15)} ${f2(-s*.8)}L${f2(-s*.35)} ${f2(s*.08)}H${f2(s*.05)}L${f2(-s*.15)} ${f2(s*.8)}L${f2(s*.4)} ${f2(-s*.12)}H0Z`;
+  const arc=(rad,a1,a2)=>{const[x1,y1]=P2(a1,rad),[x2,y2]=P2(a2,rad);return `M${x1} ${y1}A${f2(rad)} ${f2(rad)} 0 ${a2-a1>Math.PI?1:0} 1 ${x2} ${y2}`;};
+  const cres=s=>`M${f2(s*.2)} ${f2(-s*.75)}A${f2(s*.75)} ${f2(s*.75)} 0 1 0 ${f2(s*.2)} ${f2(s*.75)}A${f2(s*.55)} ${f2(s*.6)} 0 1 1 ${f2(s*.2)} ${f2(-s*.75)}Z`;
+  // frame around the sigil
+  switch(frame){
+    case 1:p(polyD(pts,R0,starK(pts),0),undefined,W*.8);break;
+    case 2:for(let i=0;i<pts;i++){const[x,y]=P2(TOP+i/pts*2*Math.PI,R0*.92);dot(x,y,R0*.06);}break;
+    case 3:{const cnt=pts*2;for(let i=0;i<cnt;i++)p(alpha[i%alpha.length],M.mul(M.mul(M.rot(i/cnt*360),M.tr(0,-R0*.88)),M.sc(R0*.012)),1.1);break;}
+    case 4:{let d='';for(let i=0;i<n*2;i++){const a=i/(n*2)*2*Math.PI,[x1,y1]=P2(a,R0*.8),[x2,y2]=P2(a,i%2?R0*.9:R0);d+=`M${x1} ${y1}L${x2} ${y2}`;}p(d,undefined,W*.7);break;}
+    case 5:p(arc(R0*.92,-2.6,-.55)+arc(R0*.92,.55,2.6),undefined,W*.8);break;
+  }
+  // the element sigil, in one of three variants
+  switch(el){
+    case 'Fire':if(v===0){p(tri(1,r));p(flame(r*.45));}else if(v===1){p(flame(r*.85));p(flame(r*.38));}else{p(starD(pts,r*.9,r*.42));p(flame(r*.32));}break;
+    case 'Water':if(v===0){p(tri(0,r));p(wave(r*.45,-r*.12));}else if(v===1){[-.35,0,.35].forEach(y=>p(wave(r*.6,y*r)));}else{p(drop(r*.8));c(r*.2,M.tr(0,r*.25));}break;
+    case 'Wind':if(v===0)p(tri(1,r)+`M${f2(-r*.55)} ${f2(r*.05)}H${f2(r*.55)}`);else if(v===1)p(spiral(r*.85,2.5));else for(let i=0;i<3;i++)p(`M0 0Q${f2(r*.7)} ${f2(-r*.1)} ${f2(r*.55)} ${f2(-r*.75)}`,M.rot(i*120));break;
+    case 'Earth':if(v===0)p(tri(0,r)+`M${f2(-r*.55)} ${f2(-r*.05)}H${f2(r*.55)}`);else if(v===1){p(polyD(4,r*.85,1,0));p(`M0 ${f2(-r*.45)}V${f2(r*.45)}M${f2(-r*.45)} 0H${f2(r*.45)}`);}else p(`M${f2(-r*.85)} ${f2(r*.5)}L${f2(-r*.3)} ${f2(-r*.4)}L0 ${f2(r*.05)}L${f2(r*.35)} ${f2(-r*.65)}L${f2(r*.85)} ${f2(r*.5)}Z`);break;
+    case 'Lightning':if(v===0)p(bolt(r));else if(v===1){p(bolt(r*.7),M.tr(-r*.28,0));p(bolt(r*.7),M.tr(r*.28,0));}else{p(polyD(4,r*.95,1,0));p(bolt(r*.6));}break;
+    case 'Light':if(v===0){let d=circD(0,0,r*.3);for(let i=0;i<n*2;i++){const a=i/(n*2)*2*Math.PI,[x1,y1]=P2(a,r*.42),[x2,y2]=P2(a,i%2?r*.7:r*.92);d+=`M${x1} ${y1}L${x2} ${y2}`;}p(d);}else if(v===1){p(`M${f2(-r*.85)} 0Q0 ${f2(-r*.75)} ${f2(r*.85)} 0Q0 ${f2(r*.75)} ${f2(-r*.85)} 0Z`);c(r*.26);dot(0,0,r*.1);}else p(starD(pts,r*.9,r*.3));break;
+    case 'Shadow':if(v===0)p(cres(r));else if(v===1){p(cres(r*.65),M.tr(-r*.2,0));p(cres(r*.65),M.mul(M.tr(r*.2,0),[-1,0,0,1,0,0]));}else{c(r*.6);c(r*.5,M.tr(r*.22,-r*.12));}break;
+    case 'Void':if(v===0){c(r*.6);dot(0,0,r*.08);for(let i=0;i<N7;i++){const[x,y]=P2(TOP+i/N7*2*Math.PI,r*.82);dot(x,y,r*.06);}}else if(v===1)p(spiral(r*.85,4));else{c(r*.7);p(`M0 ${f2(-r*.95)}V${f2(-r*.35)}M0 ${f2(r*.35)}V${f2(r*.95)}M${f2(-r*.95)} 0H${f2(-r*.35)}M${f2(r*.35)} 0H${f2(r*.95)}`);dot(0,0,r*.06);}break;
+    case 'Time':if(v===0)p(`M${f2(-r*.45)} ${f2(-r*.7)}H${f2(r*.45)}L${f2(-r*.45)} ${f2(r*.7)}H${f2(r*.45)}Z`);else if(v===1){c(r*.78);let d='';for(let i=0;i<12;i++){const a=i/12*2*Math.PI,[x1,y1]=P2(a,r*.62),[x2,y2]=P2(a,r*.74);d+=`M${x1} ${y1}L${x2} ${y2}`;}p(d+`M0 0V${f2(-r*.5)}M0 0L${f2(r*.36)} ${f2(r*.12)}`);}else{let d='';for(let i=0;i<=48;i++){const t=i/48*2*Math.PI,q=1+Math.sin(t)**2;d+=(i?'L':'M')+f2(r*.9*Math.cos(t)/q)+' '+f2(r*.9*Math.sin(t)*Math.cos(t)/q);}p(d);}break;
+    case 'Gravity':if(v===0){c(r*.7);c(r*.45);c(r*.2);p(`M0 ${f2(-r*.9)}V${f2(r*.9)}`);}else if(v===1){for(let i=0;i<4;i++)e(r*(.9-.2*i),r*(.32-.06*i),M.tr(0,i*r*.16-r*.2));}else{c(r*.25);e(r*.9,r*.35,M.rot(-N33));const[x,y]=applyM(M.rot(-N33),r*.9,0);dot(x,y,r*.08);}break;
+    case 'Chaos':if(v===0){let d='';for(let i=0;i<8;i++){const a=i/8*2*Math.PI,[x,y]=P2(a,r*.85),[lx,ly]=P2(a-.18,r*.6),[rx,ry]=P2(a+.18,r*.6);d+=`M0 0L${x} ${y}M${lx} ${ly}L${x} ${y}L${rx} ${ry}`;}p(d);}else if(v===1){let d='';for(let i=0;i<pts;i++){const[x,y]=P2(TOP+i/pts*2*Math.PI,r*(.4+rng()*.6));d+=`M0 0L${x} ${y}`;}p(d);dot(0,0,r*.08);}else{for(let i=0;i<pts;i++){const a1=i/pts*2*Math.PI;p(arc(r*.75,a1,a1+2*Math.PI/pts*.6));}dot(0,0,r*.08);}break;
+    case 'Cosmos':if(v===0){e(r*.85,r*.3,M.rot(-N21));p(starD(5,r*.4,r*.17));}else if(v===1){p(spiral(r*.85,1.5));p(spiral(r*.85,1.5),M.rot(180));dot(0,0,r*.08);}else{const q=Array.from({length:Math.max(N5,Math.min(pts,9))},()=>P2(rng()*2*Math.PI,r*(.2+rng()*.65)));p('M'+q.map(a=>a.join(' ')).join('L'),undefined,W*.6);q.forEach(([x,y])=>dot(x,y,r*.06));}break;
+  }
+  if(accent===1&&!['Light','Void','Cosmos','Chaos'].includes(el))dot(0,0,r*.07);
+  if(accent===2)c(r*.14,undefined,W*.6);
+  return{items:out,spin:frame>=2&&frame<=4};
+}
+
+// ---------- the generator: a list of layers, each a list of shapes ----------
+// Shapes: c = circle (stroke, or fill for dots), p = path, e = ellipse, t = tapered ring. Optional m = matrix.
+function build(st){
+  const r=rngFrom([st.seed,st.element,st.purpose,EFFECTS.filter(e=>st.effects.includes(e)).join('.'),st.sym,st.points,st.rings,st.power,st.script].join('|')); // order-free, so codes rebuild the same circle
+  const P=palette(st),n=st.sym,pts=st.points,R=468,INNER=96,sw=1.1+st.power*.33;
+  const alpha=makeAlphabet(rngFrom(st.seed+'|'+st.script),st.script);
+  const C=(rad,w,col,m,bg)=>({k:'c',r:rad,w,col,m,bg});
+  const N=st.rings,ws=Array.from({length:N},(_,i)=>i===0?1.3:.55+r()),tot=ws.reduce((a,b)=>a+b,0);
+  const edges=[R];let acc=R;for(const w of ws){acc-=(R-INNER)*w/tot;edges.push(acc);}
+  let cw=st.buffs.length,ccw=st.debuffs.length;const dirs=[];
+  for(let i=0;i<N;i++){if(i%2===0&&cw>0){dirs.push(1);cw--;}else if(ccw>0){dirs.push(-1);ccw--;}else if(cw>0){dirs.push(1);cw--;}else dirs.push(i%3===0?.3:0);}
+  const w0={glyph:2,ticks:2,dots:1.5,double:1.5,polygon:1.5,star:1.5,orbits:1,petals:1,zigzag:.7,chain:.7,rays:1};
+  st.effects.forEach(e=>{const b=EFFECT_BIAS[e];if(b)for(const k in b)w0[k]+=b[k];});
+  const layers=[];let prev='';
+  for(let i=0;i<N;i++){
+    const ro=edges[i],ri=edges[i+1],mid=(ro+ri)/2,th=ro-ri,col=i%2?P.acc:P.main;
+    const bw=.55+r()*1.3,thin=Math.max(.7,sw*.55*bw); // per-band line weight: thickness variation
+    let t=i===0?'glyph':weighted(r,w0),guard=0;while(t===prev&&guard++<N7)t=weighted(r,w0);prev=t;
+    // every band edge is a tapered ring: thick on one side, thin on the other
+    const it=[{k:'t',r:ro,w:(i===0?sw*1.9:sw)*(.8+r()*1.3),col:P.main,ph:r()*Math.PI*2,amt:.35+r()*.6}];
+    switch(t){
+      case 'glyph':{it.push(C(ri,thin,P.main));const s=Math.min(th*.62/14,2.6),step=15*s,count=Math.max(N13,Math.floor(2*Math.PI*mid/step)),gw=.8+r()*1;let wl=pick(r,[N3,N5,N7]),k=0;
+        for(let j=0;j<count;j++){const rm=M.mul(M.rot(j/count*360),M.tr(0,-mid));
+          if(k===wl){k=0;wl=pick(r,[N3,N5,N7]);it.push({k:'c',r:s*1.2,fill:col,m:rm});continue;}
+          k++;it.push({k:'p',d:pick(r,alpha),w:gw*(.75+r()*.5),col,m:M.mul(rm,M.sc(s))});}
+        break;}
+      case 'ticks':{it.push(C(ri,thin,P.main));const m=n*pick(r,[6,N7,N11,12]);let d='';for(let j=0;j<m;j++){const a=j/m*2*Math.PI,len=j%n===0?1:(j%2?.35:.6),[x1,y1]=P2(a,ri),[x2,y2]=P2(a,ri+th*len);d+=`M${x1} ${y1}L${x2} ${y2}`;}it.push({k:'p',d,w:thin,col});break;}
+      case 'dots':{const m=n*(2+(r()*5|0));for(let j=0;j<m;j++){const[x,y]=P2(j/m*2*Math.PI,mid);it.push({k:'c',r:j%n===0?th*.16:th*.08,fill:col,m:M.tr(x,y)});}break;}
+      case 'double':{it.push(C(ro-th*.22,thin,col),C(ri,sw*bw,P.main));let d='';for(let j=0;j<n*2;j++){const a=j/(n*2)*2*Math.PI,[x1,y1]=P2(a,ri),[x2,y2]=P2(a,ro-th*.22);d+=`M${x1} ${y1}L${x2} ${y2}`;}it.push({k:'p',d,w:thin,col});break;}
+      case 'polygon':it.push({k:'p',d:polyD(pts,ro,1,r()<.5?0:Math.PI/pts),w:thin,col},C(ri,thin,P.main));break;
+      case 'star':it.push({k:'p',d:polyD(pts,ro,starK(pts),0),w:thin*1.2,col});break;
+      case 'orbits':{it.push(C(ri,thin,P.main));const rr=th*.38;for(let j=0;j<n;j++){const[x,y]=P2(j/n*2*Math.PI+Math.PI/n,mid);it.push(C(rr,thin,col,M.tr(x,y),P.bg),{k:'c',r:rr*.35,fill:col,m:M.tr(x,y)});}break;}
+      case 'petals':{const m=n*2;let d='';for(let j=0;j<m;j++){const a=j/m*2*Math.PI,da=Math.PI/m*.9,[x1,y1]=P2(a-da,ri),[x2,y2]=P2(a+da,ri),[qx,qy]=P2(a,ro+th*.3);d+=`M${x1} ${y1}Q${qx} ${qy} ${x2} ${y2}`;}it.push({k:'p',d,w:thin,col},C(ri,thin,P.main));break;}
+      case 'zigzag':{const m=2*n*pick(r,[N3,N5]);let d='';for(let j=0;j<m;j++){const[x,y]=P2(j/m*2*Math.PI,j%2?ri+th*.15:ro-th*.15);d+=(j?'L':'M')+x+' '+y;}it.push({k:'p',d:d+'Z',w:thin,col},C(ri,thin,P.main));break;}
+      case 'chain':{const lw=th*.7,m=Math.max(N13,Math.floor(2*Math.PI*mid/(lw*.9)));for(let j=0;j<m;j++)it.push({k:'e',rx:lw*.55,ry:th*(j%2?.12:.2),w:thin,col,m:M.mul(M.rot(j/m*360),M.tr(0,-mid))});it.push(C(ri,thin,P.main));break;}
+      case 'rays':{const m=n*pick(r,[N3,4,N5]);let d='';for(let j=0;j<m;j++){const a=j/m*2*Math.PI,[x1,y1]=P2(a,ri),[x2,y2]=P2(a,j%N3?ro-th*.3:ro);d+=`M${x1} ${y1}L${x2} ${y2}`;}it.push({k:'p',d,w:thin,col},C(ri,thin,P.main));break;}
+    }
+    layers.push({items:it,dir:dirs[i]*(fx.reverse?-1:1),dur:RING_DURS[i%N7],z:i*LAYER_Z});
+  }
+  // fractal repeat: small circles at each star point, each holding smaller copies of itself
+  if(st.fractal>0){
+    const items=[],Rf=edges[1]-R*.12,base=R*.1;
+    const mini=(m,rad,depth,top)=>{const ww=Math.max(.35,sw*.8*rad/base);
+      items.push(C(rad,ww,P.acc,m,P.bg),{k:'p',d:polyD(pts,rad*.8,starK(pts),0),w:ww*.75,col:P.main,m});
+      if(top)items.push(C(rad*.62,ww*.6,P.main,m));
+      if(depth>1)for(let j=0;j<pts;j++){const[x,y]=P2(TOP+j/pts*2*Math.PI,rad*.8);mini(M.mul(m,M.tr(x,y)),rad*.3,depth-1,false);}};
+    for(let j=0;j<pts;j++){const[x,y]=P2(TOP+j/pts*2*Math.PI+Math.PI/pts,Rf);mini(M.tr(x,y),base,st.fractal,true);}
+    layers.push({items,dir:-.5,dur:N66,z:LAYER_Z*1.5});
+  }
+  const cr=coreItems(st,INNER*.82,P,sw,rngFrom('core|'+st.seed+'|'+st.element),alpha);
+  layers.push({items:[{k:'t',r:INNER,w:sw*1.4,col:P.main,ph:r()*6.28,amt:.5},...cr.items],dir:cr.spin?.3:0,dur:N42,z:N*LAYER_Z+12});
+  const ex=[];
+  if(isMaster(st)){ex.push(C(R+14,1.2,P.acc));for(let i=0;i<N33;i++){const[x,y]=P2(i/N33*2*Math.PI,R+24);ex.push({k:'c',r:2.6,fill:P.acc,m:M.tr(x,y)});}}
+  if(fx.gold){ex.push(C(R+20,4,'#e6b84a'));for(let i=0;i<N21;i++){const[x,y]=P2(i/N21*2*Math.PI,R+20);ex.push({k:'c',r:5,fill:'#e6b84a',m:M.tr(x,y)});}}
+  if(ex.length)layers.unshift({items:ex,dir:0,dur:1,z:-10});
+  return{layers,P};
+}
+const isMaster=st=>st.buffs.length===N3&&st.debuffs.length===N3;
+
+// ---------- 2D: shapes to SVG ----------
+function itemSVG(it){
+  const t=it.m?` transform="matrix(${it.m.map(v=>+v.toFixed(4)).join(' ')})"`:'';
+  switch(it.k){
+    case 'c':return it.fill?`<circle r="${f2(it.r)}" fill="${it.fill}"${t}/>`:`<circle r="${f2(it.r)}" fill="${it.bg||'none'}" stroke="${it.col}" stroke-width="${f2(it.w)}"${t}/>`;
+    case 'p':return `<path d="${it.d}" fill="none" stroke="${it.col}" stroke-width="${f2(it.w)}" stroke-linecap="round" stroke-linejoin="round"${t}/>`;
+    case 'e':return `<ellipse rx="${f2(it.rx)}" ry="${f2(it.ry)}" fill="none" stroke="${it.col}" stroke-width="${f2(it.w)}"${t}/>`;
+    case 't':{const ox=Math.cos(it.ph)*it.w*it.amt/2,oy=Math.sin(it.ph)*it.w*it.amt/2;return `<path d="${circD(0,0,it.r+it.w/2)}${circD(ox,oy,it.r-it.w/2)}" fill="${it.col}" fill-rule="evenodd"${t}/>`;}
+  }
+  return '';
+}
+function toSVG(B,st){
+  const P=B.P,body=B.layers.map(L=>{const spin=L.dir?` class="ring" style="animation-duration:${(L.dur/ui.speed/Math.abs(L.dir)).toFixed(1)}s;animation-direction:${L.dir>0?'normal':'reverse'}"`:'';return `<g${spin}>${L.items.map(itemSVG).join('')}</g>`;}).join('');
+  const defs=`<defs><filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="${(st.glow*.9).toFixed(1)}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><filter id="ink"><feTurbulence type="fractalNoise" baseFrequency="0.033" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="4"/></filter></defs>`;
+  return `${defs}<rect id="bg" x="-500" y="-500" width="1000" height="1000" fill="${P.bg}"/><g${st.glow>0?' filter="url(#glow)"':''}><g${P.ink?' filter="url(#ink)"':''}>${body}</g></g>`;
+}
+function spellName(st){const r=rngFrom('name|'+st.seed+st.purpose),cap=s=>s[0].toUpperCase()+s.slice(1);return `${cap(pick(r,SYL)+pick(r,SYL))}'${pick(r,SYL)}${r()<.5?pick(r,SYL):''} ${PURPOSES[st.purpose]}`;}
+function sigilOf(seed){const h=hashStr('sigil|'+seed.toUpperCase())();if(h%N7!==0)return null;const idx=(h>>>3)%N72,r=rngFrom('sigilname'+idx);const nm=pick(r,SYL)+pick(r,SYL)+pick(r,['eth','or','ael','is','um','ar']);return{idx:idx+1,name:nm[0].toUpperCase()+nm.slice(1)};}
+
+// ---------- 3D: the same shapes as tubes, one stacked layer per ring ----------
+const THREE_V='0.147.0',J3=`https://cdn.jsdelivr.net/npm/three@${THREE_V}`;
+const LIBS3D=['build/three.min.js','examples/js/loaders/SVGLoader.js','examples/js/controls/OrbitControls.js','examples/js/postprocessing/Pass.js','examples/js/shaders/CopyShader.js','examples/js/shaders/LuminosityHighPassShader.js','examples/js/postprocessing/EffectComposer.js','examples/js/postprocessing/RenderPass.js','examples/js/postprocessing/ShaderPass.js','examples/js/postprocessing/UnrealBloomPass.js','examples/js/exporters/GLTFExporter.js','examples/js/exporters/OBJExporter.js','examples/js/exporters/STLExporter.js'].map(p=>`${J3}/${p}`);
+const JSZIP_URL='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+function loadScript(src){return new Promise((res,rej)=>{if(document.querySelector(`script[data-src="${src}"]`)){res();return;}const s=document.createElement('script');s.src=src;s.dataset.src=src;s.onload=res;s.onerror=()=>rej(new Error('Could not load '+src));document.head.appendChild(s);});}
+let libsPromise=null;
+function load3D(){if(!libsPromise)libsPromise=(async()=>{for(const s of LIBS3D)await loadScript(s);})().catch(e=>{libsPromise=null;throw e;});return libsPromise;}
+const pathCache=new Map();
+function pathPolys(d){
+  if(pathCache.has(d))return pathCache.get(d);
+  const polys=[],data=new THREE.SVGLoader().parse(`<svg xmlns="http://www.w3.org/2000/svg"><path d="${d}"/></svg>`);
+  data.paths.forEach(p=>p.subPaths.forEach(sp=>{let pts=sp.getPoints(5);let mx=0;pts.forEach(v=>{mx=Math.max(mx,Math.abs(v.x),Math.abs(v.y));});if(mx>60)pts=sp.getPoints(20);
+    const arr=pts.map(v=>[v.x,v.y]);for(let i=arr.length-1;i>0;i--)if(Math.hypot(arr[i][0]-arr[i-1][0],arr[i][1]-arr[i-1][1])<1e-4)arr.splice(i,1);
+    const closed=arr.length>2&&Math.hypot(arr[0][0]-arr[arr.length-1][0],arr[0][1]-arr[arr.length-1][1])<1e-3;if(closed)arr.pop();if(arr.length>1)polys.push({pts:arr,closed});}));
+  pathCache.set(d,polys);if(pathCache.size>800)pathCache.delete(pathCache.keys().next().value);return polys;
+}
+function tube(acc,pts,radii,closed){ // pts in SVG coords; becomes a round tube lying in the z=0 plane
+  const n=pts.length;if(n<2)return;const K=6,base=acc.p.length/3;
+  for(let i=0;i<n;i++){const a=pts[closed?(i-1+n)%n:Math.max(0,i-1)],b=pts[closed?(i+1)%n:Math.min(n-1,i+1)];let tx=b[0]-a[0],ty=-(b[1]-a[1]);const L=Math.hypot(tx,ty)||1;tx/=L;ty/=L;
+    const nx=-ty,ny=tx,rr=typeof radii==='number'?radii:radii[i],X=pts[i][0],Y=-pts[i][1];
+    for(let k=0;k<K;k++){const an=k/K*2*Math.PI,c=Math.cos(an),s=Math.sin(an);acc.p.push(X+nx*c*rr,Y+ny*c*rr,s*rr);acc.n.push(nx*c,ny*c,s);}}
+  const segs=closed?n:n-1;
+  for(let i=0;i<segs;i++){const i2=(i+1)%n;for(let k=0;k<K;k++){const k2=(k+1)%K,a=base+i*K+k,b=base+i*K+k2,c=base+i2*K+k,d=base+i2*K+k2;acc.i.push(a,c,b,b,c,d);}}
+}
+function item3D(accs,it){
+  const m=it.m||M.id(),s=mscale(m),key=it.fill||it.col;let acc=accs.get(key);if(!acc){acc={p:[],n:[],i:[]};accs.set(key,acc);}
+  const ring=(rx,ry,N)=>Array.from({length:N},(_,i)=>{const a=i/N*2*Math.PI;return applyM(m,Math.cos(a)*rx,Math.sin(a)*ry);});
+  switch(it.k){
+    case 'c':if(it.fill)tube(acc,ring(it.r*.5,it.r*.5,10),Math.max(.4,it.r*.5*s),true);else{const N=Math.max(16,Math.min(160,Math.round(it.r*s/3.5)));tube(acc,ring(it.r,it.r,N),Math.max(.5,it.w*s/2),true);}break;
+    case 'e':tube(acc,ring(it.rx,it.ry,40),Math.max(.5,it.w*s/2),true);break;
+    case 't':{const N=Math.max(32,Math.min(200,Math.round(it.r*s/3)));tube(acc,ring(it.r,it.r,N),Array.from({length:N},(_,i)=>Math.max(.5,it.w*s/2*(1-it.amt*.8*Math.cos(i/N*2*Math.PI-it.ph)))),true);break;}
+    case 'p':pathPolys(it.d).forEach(pl=>tube(acc,pl.pts.map(q=>applyM(m,q[0],q[1])),Math.max(.45,it.w*s/2),pl.closed));break;
+  }
+}
+const toColor=c=>new THREE.Color().setStyle(c);
+// Dissolve shader: noise in each ring's own space eats it away, with a coloured edge (embers, wisps, ash).
+const NOISE_GLSL=`float h3(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+float vn(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}`;
+function dissolveMaterial(col,st){
+  const c=toColor(col),m=new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:.18+st.glow*.05,metalness:.3,roughness:.38,side:THREE.DoubleSide});
+  m.userData.baseEI=m.emissiveIntensity;m.userData.base=c.clone();
+  m.userData.u={uDissolve:{value:0},uEdgeColor:{value:new THREE.Color(1,.42,.1)},uEdgeW:{value:.1},uScale:{value:.02}};
+  m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,m.userData.u);
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vLocal;').replace('#include <begin_vertex>','#include <begin_vertex>\nvLocal=position;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vLocal;uniform float uDissolve;uniform vec3 uEdgeColor;uniform float uEdgeW;uniform float uScale;\n'+NOISE_GLSL)
+      .replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nfloat dn=vn(vLocal*uScale)*.65+vn(vLocal*uScale*3.1)*.35;if(uDissolve>0.0&&dn<uDissolve)discard;')
+      .replace('#include <dithering_fragment>','if(uDissolve>0.0){float eg=1.0-smoothstep(0.0,uEdgeW,dn-uDissolve);gl_FragColor.rgb=mix(gl_FragColor.rgb,uEdgeColor*2.2,eg);}\n#include <dithering_fragment>');};
+  return m;
+}
+function buildModel(B,st,{plain=false}={}){
+  const root=new THREE.Group();root.name='MagicCircle';const groups=[];
+  B.layers.forEach((L,li)=>{const g=new THREE.Group();g.name='ring_'+li;const accs=new Map(),mats=[];L.items.forEach(it=>item3D(accs,it));
+    accs.forEach((a,col)=>{if(!a.i.length)return;const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(a.p,3));geo.setAttribute('normal',new THREE.Float32BufferAttribute(a.n,3));geo.setIndex(a.i);
+      const mt=plain?new THREE.MeshStandardMaterial({color:toColor(col),emissive:toColor(col),emissiveIntensity:.18+st.glow*.05,metalness:.3,roughness:.38}):dissolveMaterial(col,st);mats.push(mt);
+      const mesh=new THREE.Mesh(geo,mt);mesh.name=g.name+'_'+col.replace(/[^a-z0-9]/gi,'');g.add(mesh);});
+    g.position.z=L.z;g.userData={dir:L.dir,dur:L.dur,z0:L.z,mats};root.add(g);groups.push(g);});
+  return{root,groups};
+}
+// ---------- 3D motion: every style loops over 7 seconds, rings staggered outer to inner ----------
+const MOTIONS={none:'Spin only',rise:'Rise',fall:'Fall',expand:'Expand',dissipate:'Dissipate',burn:'Burn',deteriorate:'Deteriorate'};
+const MOTION_T=N7,MOTION_KEYS=Object.keys(MOTIONS);
+const cl01=x=>Math.min(1,Math.max(0,x)),smooth=x=>{x=cl01(x);return x*x*(3-2*x);};
+const outBack=x=>{const c=1.70158;x=cl01(x)-1;return 1+(c+1)*x*x*x+c*x*x;};
+const outBounce=x=>{x=cl01(x);const n=7.5625,d=2.75;if(x<1/d)return n*x*x;if(x<2/d)return n*(x-=1.5/d)*x+.75;if(x<2.5/d)return n*(x-=2.25/d)*x+.9375;return n*(x-=2.625/d)*x+.984375;};
+const rnd=i=>{const s=Math.sin(i*12.9898)*43758.5453;return s-Math.floor(s);};
+const EDGE={fall:null,dissipate:null,burn:'#ff6a1a',deteriorate:'#4a4038'};
+function applyMotion(g,mo,p,k,i,t){
+  const d=g.userData;let z=d.z0,s=1,rx=0,ry=0,dis=0,ew=.1,sc=.02,flare=0;
+  switch(mo){
+    case 'rise':{const w=Math.sin(Math.PI*cl01((p-k*.3)/.7))**2;z+=w*(80+k*260);rx=w*.07*Math.sin(i*1.7);ry=w*.05*Math.cos(i*2.3);break;}
+    case 'fall':{const u=cl01((p-k*.35)/.45),drop=1-outBounce(u);z+=drop*900;dis=Math.max(0,1-u*3)*.95;if(p>.88)dis=Math.max(dis,(p-.88)/.12*1.05);ew=.08;break;}
+    case 'expand':{let v=outBack((p-k*.3)/.5);if(p>.85)v*=1-smooth((p-.85)/.15);s=Math.max(.001,v);z=d.z0*s;break;}
+    case 'dissipate':{const a=p<.6?cl01((p-k*.25)/.35):1-cl01((p-.6-k*.1)/.3),e=smooth(a);dis=e*1.05;z+=e*(150+k*300);s=1+e*.25;ew=.18;sc=.015;break;}
+    case 'burn':{let a=cl01((p-k*.45)/.35);if(p>.9)a*=1-smooth((p-.9)/.1);dis=a*1.05;z+=a*40;ew=.12;flare=a>0&&a<1?(.7+.3*Math.sin(t*40+i*3)):0;break;}
+    case 'deteriorate':{let a=cl01((p-rnd(i)*.4)/.5);if(p>.9)a*=1-smooth((p-.9)/.1);dis=a*.98;z-=a*a*200;rx=a*.25*(rnd(i+7)-.5);ry=a*.18*(rnd(i+3)-.5);ew=.07;sc=.05;break;}
+  }
+  g.position.z=z;g.scale.setScalar(s);g.rotation.x=rx;g.rotation.y=ry;
+  d.mats.forEach(m=>{const u=m.userData.u;if(!u)return;u.uDissolve.value=dis;u.uEdgeW.value=ew;u.uScale.value=sc;
+    if(EDGE[mo])u.uEdgeColor.value.setStyle(EDGE[mo]);else u.uEdgeColor.value.copy(m.userData.base).lerp(new THREE.Color(1,1,1),.4);
+    m.emissiveIntensity=m.userData.baseEI*(1+flare*2.2);});
+}
+class Engine{
+  constructor(canvas,{transparent=false,bloom=true}={}){
+    this.r=new THREE.WebGLRenderer({canvas,antialias:true,alpha:transparent,preserveDrawingBuffer:true});
+    this.r.setPixelRatio(Math.min(2,window.devicePixelRatio||1)); // colours stay in the page's sRGB values (legacy colour mode)
+    this.transparent=transparent;this.bloomOn=bloom;this.w=800;this.h=800;
+    this.camera=new THREE.PerspectiveCamera(30,1,10,20000);this.tilt();this.rebuild();
+  }
+  tilt(){this.camera.position.set(0,-980,1720);this.camera.lookAt(0,0,0);}
+  flat(){this.camera.position.set(0,0,2000);this.camera.lookAt(0,0,0);}
+  rebuild(){
+    this.disposeScene();lastBuild=lastBuild||build(S);
+    const B=lastBuild,sc=new THREE.Scene(),{root,groups}=buildModel(B,S);
+    sc.add(root);sc.add(new THREE.AmbientLight(0xffffff,.55));
+    const dl=new THREE.DirectionalLight(0xffffff,.9);dl.position.set(-400,600,900);sc.add(dl);
+    const pl=new THREE.PointLight(toColor(B.P.acc),.9,0);pl.position.set(0,0,320);sc.add(pl);
+    sc.background=this.transparent?null:toColor(B.P.bg);
+    this.scene=sc;this.root=root;this.groups=groups;this.composer=null;
+    if(this.bloomOn&&!this.transparent&&S.glow>0){this.composer=new THREE.EffectComposer(this.r);this.composer.addPass(new THREE.RenderPass(sc,this.camera));this.composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(this.w,this.h),S.glow*.11,.45,.12));}
+    this.resize(this.w,this.h);
+  }
+  resize(w,h){this.w=w;this.h=h;this.r.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(this.composer)this.composer.setSize(w,h);}
+  frame(t){const mo=S.motion||'none',p=((t/MOTION_T)%1+1)%1,L=this.groups.length;
+    this.groups.forEach((g,i)=>{const d=g.userData;g.rotation.z=d.dir?-Math.sign(d.dir)*Math.abs(d.dir)*2*Math.PI*t/d.dur:0;applyMotion(g,mo,p,L>1?i/(L-1):0,i,t);});if(this.composer)this.composer.render();else this.r.render(this.scene,this.camera);}
+  disposeScene(){if(!this.scene)return;this.scene.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose();});this.scene=null;}
+  dispose(){this.disposeScene();this.r.dispose();this.r.forceContextLoss();}
+}
+const v3={on:false,eng:null,ctl:null,t:0,raf:0,last:0,ro:null,rt:0};
+async function toggle3D(quiet){
+  if(quiet!==true&&v3.on){stop3D();return;}if(v3.on)return;
+  const b=$('#view3d');b.disabled=true;if(quiet!==true)toast('Loading 3D…');
+  try{await load3D();}catch(e){b.disabled=false;if(quiet!==true)toast('3D could not load. Check your connection and try again.');return;}
+  if(v3.on){b.disabled=false;return;}
+  b.disabled=false;v3.on=true;
+  const cv=document.createElement('canvas');cv.id='c3d';cv.setAttribute('aria-label','3D magic circle, drag to orbit');$('#wrap').appendChild(cv);svg.style.visibility='hidden';
+  v3.eng=new Engine(cv);v3.ctl=new THREE.OrbitControls(v3.eng.camera,cv);v3.ctl.enableDamping=true;v3.ctl.enablePan=false;v3.ctl.minDistance=500;v3.ctl.maxDistance=6000;
+  const fit=()=>{const w=Math.max(50,$('#wrap').clientWidth);v3.eng.resize(w,w);};fit();v3.ro=new ResizeObserver(fit);v3.ro.observe($('#wrap'));
+  v3.last=performance.now();const f=t=>{if(!v3.on)return;const dt=Math.min(.1,(t-v3.last)/1000);v3.last=t;if(ui.animate)v3.t+=dt*ui.speed;v3.ctl.update();v3.eng.frame(v3.t);v3.raf=requestAnimationFrame(f);};v3.raf=requestAnimationFrame(f);
+  $('#hint3d').hidden=false;syncUI();
+}
+function stop3D(){v3.on=false;cancelAnimationFrame(v3.raf);if(v3.ro)v3.ro.disconnect();if(v3.ctl)v3.ctl.dispose();if(v3.eng)v3.eng.dispose();$('#c3d')?.remove();svg.style.visibility='';v3.eng=null;v3.ctl=null;$('#hint3d').hidden=true;syncUI();}
+function refresh3D(){if(!v3.on)return;clearTimeout(v3.rt);v3.rt=setTimeout(()=>{if(v3.eng)v3.eng.rebuild();},140);}
+
+// ---------- secrets registry ----------
+const EGGS={
+  codex:['The Codex','Opened the secret codex','Some logos like being clicked more than once.'],
+  memory:['Glyph Memory','Woke the core','The core is ticklish.'],
+  memory7:['Long Memory','Remembered 7 glyphs','Seven in a row.'],
+  limit:['Limit Break','Pushed power past seven','Seven is not a ceiling. Insist.'],
+  eleven:['One Louder','Symmetry 11','How far does symmetry go?'],
+  cursed:['Thirteen Rings','Used all 13 rings','Use every ring you are given.'],
+  points13:['Thirteen Points','A 13-point star','Count the points. Then add more.'],
+  supernova:['Supernova','Glow at 13','Turn the glow all the way up.'],
+  fractal3:['Circles All the Way Down','Fractal repeat 3','Go deeper. Then deeper.'],
+  depth:['Full Cycle','Watched every 3D motion','Try every way a circle can move.'],
+  gold:['Gilded Circle','Made 21 circles','Keep making circles.'],
+  master:['Master Seal','3 buffs + 3 debuffs','Balance blessings and curses.'],
+  dontpanic:["Don't Panic",'Seed 42','The answer is a seed.'],
+  towel:['Towel Day','Held the circle for 42 seconds','Hold on. Longer. Much longer.'],
+  order66:['Reversal 66','6 effects, 6-fold symmetry','Six and six.'],
+  sigil:['Named Sigil','Found one of the 72','Some seeds have names.'],
+  konami:['Ring Arcade','Entered a classic code','↑ ↑ ↓ ↓ …'],
+  perfectseal:['Flawless Seal','Locked all rings within 7°','Lock the arcade rings perfectly.'],
+  ouroboros:['Ouroboros','Summoned the serpent','Type the snake that eats its own tail.'],
+  serpent21:['Great Serpent','Grew the serpent to 21','Feed the serpent.'],
+  misfire:['Misfire','Summoned 11 times in a row','Summon. Again. Again…'],
+  contained:['Contained','Survived the misfire','Survive the sparks.'],
+  teleport:['Elsewhere','Got teleported','One in ten million. Or know the word.'],
+  notfound:['404','Seed 404','Some seeds are missing.'],
+  thx:['1138','Seed 1138','A very white, very calm number.'],
+};
+let found=store.get('eggs',{});
+function egg(id,msg){const e=EGGS[id],first=!found[id];if(first){found[id]=Date.now();store.set('eggs',found);toast(`✦ Secret found: ${e?e[0]:id}${msg?' · '+msg:''}`);unlocks();}else if(msg&&!['depth'].includes(id))toast(msg);return first;}
+function unlocks(){const n=Object.keys(found).length;document.body.classList.toggle('unlocked',n>=N7||!!found.pc_sudo);document.body.classList.toggle('unlocked2',n>=N13||!!found.pc_moon_prism_power);}
+
+// ---------- effects ----------
+const stage=()=>$('#stage');
+function tmpClass(el,cls,ms){el.classList.remove(cls);void el.offsetWidth;el.classList.add(cls);setTimeout(()=>el.classList.remove(cls),ms);}
+let tt;function toast(m,ms=3300){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),ms);}
+function projectile(color,count=1){for(let i=0;i<count;i++)setTimeout(()=>{const d=document.createElement('div');d.className='fly';d.style.background=`radial-gradient(circle,#fff,${color} 45%,transparent 70%)`;d.style.boxShadow=`0 0 33px ${color}`;d.style.top=(38+Math.random()*13)+'%';stage().appendChild(d);setTimeout(()=>d.remove(),1200);},i*210);}
+function beam(color){const d=document.createElement('div');d.className='beam';d.style.background=`linear-gradient(90deg,#fff,${color})`;d.style.boxShadow=`0 0 42px ${color}`;stage().appendChild(d);setTimeout(()=>d.remove(),2200);}
+function burst(color){const w=$('#wrap'),b=document.createElement('div');b.className='burst';Object.assign(b.style,{width:w.offsetWidth+'px',height:w.offsetWidth+'px',left:'50%',top:'50%',color});w.appendChild(b);setTimeout(()=>b.remove(),1000);}
+function setPal(h,s,l,bg){fx.pal={h,s,l,bg};render();}
+function rain(color,ms=N7*1000){
+  const st=stage(),cv=document.createElement('canvas');cv.width=st.clientWidth;cv.height=st.clientHeight;
+  Object.assign(cv.style,{position:'absolute',inset:0,pointerEvents:'none'});st.appendChild(cv);
+  const ctx=cv.getContext('2d'),al=makeAlphabet(rngFrom('rain'),'runic',N33).map(d=>new Path2D(d)),cols=Math.floor(cv.width/N21),ys=Array.from({length:cols},()=>Math.random()*-cv.height),t0=performance.now();let fr=0;
+  (function f(t){if(fr++%2===0){ctx.fillStyle='rgba(0,0,0,.13)';ctx.fillRect(0,0,cv.width,cv.height);ctx.strokeStyle=color;ctx.lineWidth=1.2;
+    for(let i=0;i<cols;i++){ctx.save();ctx.translate(i*N21+10,ys[i]);ctx.scale(1.3,1.3);ctx.stroke(al[Math.random()*al.length|0]);ctx.restore();ys[i]+=N21;if(ys[i]>cv.height&&Math.random()>.95)ys[i]=0;}}
+    if(t-t0<ms)requestAnimationFrame(f);else cv.remove();})(t0);
+}
+function towel(){const d=document.createElement('div');d.className='towel';stage().appendChild(d);setTimeout(()=>d.remove(),7100);egg('towel','Always know where your towel is.');}
+function unlockPower(){ui.powerMax=N13;store.set('power13',true);egg('limit');syncUI();}
+
+// ---------- words of power (pop culture nods) ----------
+const WORDS=[
+  ['xyzzy','Colossal Cave Adventure','Nothing happens.'],
+  ['hadouken','Street Fighter','Hadouken!',()=>projectile('#5ab8ff')],
+  ['kamehameha','Dragon Ball','Ka… me… ha… me… HA!',()=>{tmpClass(stage(),'charge',1300);setTimeout(()=>beam('#6fd3ff'),1100);}],
+  ['over 9000','Dragon Ball Z',"It's over 9000!",()=>{fx.over9000=true;syncUI();tmpClass(stage(),'shake',500);setTimeout(()=>{fx.over9000=false;syncUI();},N7*1000);}],
+  ['rasengan','Naruto','Spiraling sphere!',()=>tmpClass(stage(),'spinfast',3300)],
+  ['believe it','Naruto','Believe it!',()=>setPal(28,95,58)],
+  ['bankai','Bleach','Released.',()=>setPal(355,85,52,'#050203')],
+  ['domain expansion','Jujutsu Kaisen','Domain expanded.',()=>tmpClass(stage(),'domain',4200)],
+  ['plus ultra','My Hero Academia','Go beyond!',()=>{unlockPower();commit(()=>{S.power=N13;});}],
+  ['moon prism power','Sailor Moon','Prismatic style unlocked.',()=>{unlocks();commit(()=>{S.style='prismatic';S.glow=STYLE_GLOW.prismatic;});}],
+  ['equivalent exchange','Fullmetal Alchemist','Something given, something gained.',()=>commit(()=>{S.script='alchemical';S.purpose='Transmutation';})],
+  ['el psy kongroo','Steins;Gate','Worldline shifted.',()=>{tmpClass(stage(),'cursed',1300);setTimeout(()=>commit(()=>{S.seed=newSeed();}),650);}],
+  ['omae wa mou shindeiru','Fist of the North Star','NANI?!',()=>{tmpClass(stage(),'shake',500);setTimeout(()=>tmpClass(stage(),'shake',500),600);}],
+  ['isekai','Isekai anime','A truck honks somewhere in the distance…',()=>setTimeout(()=>teleport(),1300)],
+  ['lumos','Harry Potter','Light.',()=>tmpClass(stage(),'lumos',N7*1000)],
+  ['nox','Harry Potter','Darkness.',()=>tmpClass(stage(),'nox',N7*1000)],
+  ['wingardium leviosa','Harry Potter','Levitating.',()=>stage().classList.toggle('levitate')],
+  ['wingardium leviosar','Harry Potter',"It's levi-O-sa."],
+  ['expecto patronum','Harry Potter','A silver light answers.',()=>setPal(210,20,88)],
+  ['you shall not pass','The Lord of the Rings','The bridge holds.',()=>{commit(()=>{if(!S.effects.includes('Barrier'))S.effects.push('Barrier');});burst('#ffffff');tmpClass(stage(),'shake',500);}],
+  ['magic missile','Dungeons & Dragons','It always hits.',()=>projectile('#b48cff',N3)],
+  ['roll for initiative','Dungeons & Dragons',null,()=>{const d=1+(Math.random()*20|0);toast(d===20?'Natural 20! The circle blazes.':d===1?'Natural 1. The circle sneezes.':`You rolled a ${d}.`);if(d===20)burst('#ffd36b');}],
+  ['fus ro dah','Skyrim','FUS RO DAH!',()=>tmpClass(stage(),'push',1300)],
+  ['praise the sun','Dark Souls','\\[T]/',()=>setPal(45,92,62)],
+  ['do a barrel roll','Star Fox','Barrel roll!',()=>tmpClass(document.body,'roll',1300)],
+  ['the cake is a lie','Portal','The cake remains unconfirmed.'],
+  ['its dangerous to go alone','The Legend of Zelda','Take this: 🗡️'],
+  ['there is no spoon','The Matrix','There is no circle.',()=>{setPal(130,90,55,'#010501');rain('#3dff6e');}],
+  ['beam me up','Star Trek','Energizing…',()=>setTimeout(()=>teleport(),1300)],
+  ['hello there','Star Wars','General Kenobi.'],
+  ['reticulating splines','SimCity','Splines reticulated.'],
+  ['all your base','Zero Wing','Somebody set up us the circle.',()=>tmpClass(stage(),'cursed',3300)],
+  ['sudo','Unix','Permission granted. Secret elements unlocked.',()=>unlocks()],
+  ['abracadabra','Stage magic','Ta-da!',()=>randomize()],
+  ['open sesame','One Thousand and One Nights','The circle opens.',()=>burst('#ffd36b')],
+  ['rickroll','The internet','Nice try.'],
+  ['konami','Konami','Up, up, down, down…'],
+  // philosophy
+  ['know thyself','Temple of Apollo at Delphi','Inscribed at Delphi: γνῶθι σεαυτόν.'],
+  ['cogito ergo sum','René Descartes','You think, so you are. So is the circle.'],
+  ['memento mori','The Stoics','Remember that you will die.',()=>setMotion('deteriorate')],
+  ['panta rhei','Heraclitus','Everything flows.',()=>setMotion('dissipate')],
+  ['amor fati','Friedrich Nietzsche','Love your fate.',()=>randomize()],
+  ['tabula rasa','John Locke','A blank slate.',()=>commit(()=>{S.effects=[];S.buffs=[];S.debuffs=[];})],
+].map(([k,src,msg,fn])=>({k,id:'pc_'+k.replace(/\W+/g,'_'),src,msg,fn}));
+WORDS.forEach(w=>{EGGS[w.id]=[`“${w.k}”`,w.src,'A word of power from somewhere familiar.'];});
+
+function speak(raw){
+  const k=norm(raw);if(!k)return;
+  if(k==='ouroboros'){openGame('snake');return;}
+  if(k==='elsewhere'){teleport();return;}
+  const w=WORDS.find(w=>w.k===k);
+  if(!w){toast('The circle hums… but nothing answers.');tmpClass(stage(),'charge',1300);return;}
+  const first=!found[w.id];if(first){found[w.id]=Date.now();store.set('eggs',found);unlocks();}
+  if(w.msg)toast((first?'✦ ':'')+w.msg);if(w.fn)w.fn();
+}
+
+// ---------- lore: a quote for each circle, and the real geometry and history behind it ----------
+// Public-domain sources only. Fragment numbers follow the Diels-Kranz numbering.
+const QUOTES={
+  Fire:[['All things are an exchange for fire, and fire for all things.','Heraclitus, fragment 90'],['The way up and the way down are one and the same.','Heraclitus, fragment 60']],
+  Water:[['The highest good is like water. Water benefits all things and does not compete.','Laozi, Tao Te Ching 8'],['No one ever steps in the same river twice.','after Heraclitus']],
+  Wind:[['As our soul, being air, holds us together, so do breath and air encompass the whole world.','Anaximenes, fragment 2']],
+  Earth:[['A journey of a thousand miles begins with a single step.','Laozi, Tao Te Ching 64']],
+  Lightning:[['Thunderbolt steers all things.','Heraclitus, fragment 64']],
+  Light:[['The sun is new each day.','Heraclitus, fragment 6']],
+  Shadow:[['To them, the truth would be literally nothing but the shadows of the images.','Plato, Republic VII']],
+  Void:[['Clay is fashioned into vessels; but it is on their empty hollowness that their use depends.','Laozi, Tao Te Ching 11']],
+  Time:[['Time is a sort of river of passing events, and strong is its current.','Marcus Aurelius, Meditations IV.43']],
+  Gravity:[['If I have seen further, it is by standing on the shoulders of giants.','Isaac Newton, letter to Robert Hooke, 1675']],
+  Chaos:[['One must still have chaos in oneself to be able to give birth to a dancing star.','Friedrich Nietzsche, Thus Spoke Zarathustra']],
+  Cosmos:[['Constantly regard the universe as one living being, having one substance and one soul.','Marcus Aurelius, Meditations IV.40']],
+};
+const GEO_QUOTES=[
+  ['In the circumference of a circle the beginning and end are common.','Heraclitus, fragment 103'],
+  ['Let no one ignorant of geometry enter.','Inscription said to hang over Plato’s Academy'],
+  ['There is no royal road to geometry.','Euclid, as told by Proclus'],
+  ['God is a circle whose center is everywhere and whose circumference is nowhere.','Book of the Twenty-Four Philosophers, 12th century'],
+  ['The eye is the first circle; the horizon which it forms is the second; and throughout nature this primary figure is repeated without end.','Ralph Waldo Emerson, “Circles,” 1841'],
+  ['The universe is written in the language of mathematics, and its characters are triangles, circles, and other geometric figures.','Galileo Galilei, The Assayer, 1623 (abridged)'],
+  ['The unexamined life is not worth living.','Socrates, in Plato’s Apology'],
+  ['Some things are within our power, while others are not.','Epictetus, Enchiridion 1'],
+  ['While we are postponing, life speeds by.','Seneca, Letters 1'],
+  ['The whole is something besides the parts.','Aristotle, Metaphysics VIII'],
+  ['To know what you know and to know what you do not know, that is true knowledge.','Confucius, Analects 2.17'],
+];
+const ELEMENT_LESSON={
+  Fire:'Heraclitus (about 500 BCE) taught that fire is the basic stuff of the world, always changing. Alchemists drew fire as an upward triangle.',
+  Water:'Thales, often called the first Greek philosopher, taught that everything comes from water. Alchemists drew water as a downward triangle.',
+  Wind:'Anaximenes said air is the root of everything, thickening into water and earth. Alchemy marks air as an upward triangle crossed by a line.',
+  Earth:'Empedocles proposed the four classical elements around 450 BCE. Plato later matched earth to the cube, the steadiest of his solids.',
+  Lightning:'Benjamin Franklin’s kite experiment (1752) showed lightning is electricity. Long before, Greek myth made it the weapon of Zeus.',
+  Light:'In Plato’s Republic the sun stands for the Good: it lets us see, the way understanding lets us know.',
+  Shadow:'Plato’s allegory of the cave pictures prisoners who mistake shadows on a wall for the real world.',
+  Void:'The Indian mathematician Brahmagupta wrote rules for calculating with zero in 628 CE. The idea reached Europe centuries later through Arabic scholars.',
+  Time:'Ancient Egyptians split day and night into 12 hours each, and sundials read the hour from a shadow sweeping around a circle.',
+  Gravity:'Newton showed that one force both pulls an apple to the ground and keeps the Moon circling Earth.',
+  Chaos:'In Hesiod’s Theogony (about 700 BCE), Chaos, a yawning gap, is the very first thing to exist.',
+  Cosmos:'Kosmos means both “order” and “ornament” in Greek. Tradition says Pythagoras was the first to use it for the universe.',
+};
+const SCRIPT_LESSON={
+  runic:'The runes are invented, but styled on the Elder Futhark, a 24-letter alphabet used from about 150 to 800 CE and built from straight strokes that are easy to carve in wood.',
+  alchemical:'Alchemists wrote substances as symbols: a circle with a dot meant gold and the Sun, a crescent meant silver and the Moon.',
+  celestial:'The celestial glyphs echo planetary symbols, like the Moon’s crescent, that astronomers and astrologers have used since antiquity.',
+  gibberish:'The invented script is asemic writing: marks that look like text but carry no words. Xu Bing’s Book from the Sky (1988) filled a whole room with made-up characters.',
+};
+const MOTION_LESSON={
+  rise:'Rising, nested rings recall the medieval picture of the heavens as crystal spheres inside one another, each turning at its own pace.',
+  fall:'Galileo argued that, without air resistance, heavy and light objects fall at the same rate. Astronaut David Scott proved it on the Moon in 1971 with a hammer and a feather.',
+  expand:'In 1929 Edwin Hubble found that distant galaxies are rushing apart: the universe itself is expanding.',
+  dissipate:'Entropy, a measure of disorder, tends to grow. Left alone, ordered things spread out and fade unless energy rebuilds them.',
+  burn:'Burning was once blamed on a substance called phlogiston, until Antoine Lavoisier showed in the 1770s that fire needs oxygen.',
+  deteriorate:'“Memento mori,” remember that you will die, was a Stoic reminder to live well now. Marcus Aurelius returns to it again and again.',
+};
+const ORD=n=>n===2?'2nd':n===3?'3rd':n+'th';
+const STAR_NAMES={7:'heptagram',8:'octagram',9:'enneagram',10:'decagram',11:'hendecagram',12:'dodecagram',13:'tridecagram'};
+function lessons(st){
+  const p=st.points,k=starK(p),out=[];
+  if(p<5)out.push(`The star rings are a plain ${p===3?'triangle':'square'}: with fewer than 5 points, you can’t skip a point and still draw a star.`);
+  else if(p===5)out.push('The star is a pentagram, written {5/2}: join every 2nd of 5 points. Each crossing divides a line in the golden ratio (about 1.618), one reason the Pythagoreans took it as their emblem.');
+  else if(p===6)out.push('The star is a hexagram, written {6/2}. Because 6 and 2 share a factor, it is really two overlapping triangles: the shape known as the Seal of Solomon and the Star of David.');
+  else{const g=gcd(p,k);out.push(`The star is a ${STAR_NAMES[p]}, written {${p}/${k}}: put ${p} points on a circle and join every ${ORD(k)} one.${g>1?` Because ${p} and ${k} share a factor, it splits into ${g} separate shapes.`:' This notation is called a Schläfli symbol.'}`);}
+  out.push(ELEMENT_LESSON[st.element]||'');
+  if(st.fractal>0)out.push('Fractal repeat makes the circle self-similar: copies inside copies. Benoit Mandelbrot coined the word “fractal” in 1975, from the Latin fractus, “broken.”');
+  else if(st.motion&&st.motion!=='none')out.push(MOTION_LESSON[st.motion]);
+  else{const r=rngFrom('lesson|'+st.seed);out.push(pick(r,[
+    [3,4,6].includes(st.sym)?`The circle has ${st.sym}-fold symmetry, one of the few kinds a repeating floor tiling can have (only 2, 3, 4 and 6-fold work).`:`The circle has ${st.sym}-fold symmetry. Repeating floor tilings can only have 2, 3, 4 or 6-fold symmetry, which is why ${st.sym}-fold patterns look rare. Quasicrystals, found by Dan Shechtman in 1982, broke the rule in real matter.`,
+    SCRIPT_LESSON[st.script],
+    'A full turn is 360 degrees probably because Babylonian astronomers counted in base 60, and 360 is close to the number of days in a year.',
+  ]));}
+  return out.filter(Boolean);
+}
+function updateLore(){
+  const r=rngFrom('quote|'+S.seed+'|'+S.element),own=QUOTES[S.element]||[];
+  const [q,by]=r()<.55&&own.length?pick(r,own):pick(r,GEO_QUOTES);
+  $('#quote').textContent=q;$('#quoteBy').textContent='— '+by;
+  $('#facts').innerHTML=lessons(S).map(t=>`<li>${esc(t)}</li>`).join('');
+}
+function setMotion(m){pushHist();S.motion=m;syncUI();saveHash();updateLore();if(m!=='none'&&!v3.on)toggle3D();}
+
+// ---------- render ----------
+const svg=$('#circle');
+function render(){
+  fx.reverse=S.effects.length===6&&S.sym===6;
+  lastBuild=build(S);const P=lastBuild.P;
+  svg.innerHTML=toSVG(lastBuild,S);
+  svg.classList.toggle('paused',!ui.animate);
+  const st=stage();st.style.background=P.bg;st.style.color=(S.style==='grimoire'||(fx.pal&&fx.pal.ink))?'#2a1d10':'';
+  st.classList.toggle('prismatic',!!P.prism);st.classList.toggle('cursed',S.rings>=N13);
+  const sig=sigilOf(S.seed);let name=sig?`Named Sigil ${sig.idx} of 72 · ${sig.name}`:spellName(S);if(isMaster(S))name='Master Seal · '+name;
+  $('#spellName').textContent=name;$('#spellSub').textContent=[S.element,S.purpose,...S.effects].join(' · ');
+  syncUI();scriptPreview();saveHash();refresh3D();updateLore();
+  if(S.sym===N11)egg('eleven','This one goes to eleven.');
+  if(S.rings>=N13)egg('cursed','Thirteen rings. Something is wrong.');
+  if(S.points>=N13)egg('points13','A thirteen-point star.');
+  if(S.glow>=N13)egg('supernova','Supernova.');
+  if(S.fractal>=3)egg('fractal3',"It's circles all the way down.");
+  if(isMaster(S))egg('master','Three blessings, three curses.');
+  if(fx.reverse)egg('order66','Every ring turns against you.');
+  if(sig){const sg=store.get('sigils',{});if(!sg[sig.idx]){sg[sig.idx]=sig.name;store.set('sigils',sg);if(!egg('sigil',`Sigil ${sig.idx} of 72: ${sig.name}`))toast(`Named Sigil ${sig.idx} of 72 discovered: ${sig.name}`);}}
+}
+function chip(label,g,v,cls=''){return `<button class="chip ${cls}" data-g="${g}" data-v="${v}">${label}</button>`;}
+function syncUI(){
+  document.querySelectorAll('.chip[data-g]').forEach(c=>{const g=c.dataset.g,v=c.dataset.v;c.classList.toggle('on',g==='element'||g==='motion'?S[g]===v:S[g].includes(v));});
+  $('#purpose').value=S.purpose;$('#script').value=S.script;
+  if(document.activeElement!==$('#seed'))$('#seed').value=S.seed;
+  const pw=$('#power');pw.max=ui.powerMax;pw.value=S.power;$('#powerVal').textContent=fx.over9000?`9001 / ${ui.powerMax}`:`${S.power} / ${ui.powerMax}`;
+  $('#rings').value=S.rings;$('#ringsVal').textContent=S.rings>=N13?'13 · cursed':S.rings;
+  $('#sym').value=S.sym;$('#symVal').textContent=S.sym===N11?'11-fold · one louder':S.sym+'-fold';
+  $('#points').value=S.points;$('#pointsVal').textContent=S.points+' points';
+  $('#glow').value=S.glow;$('#glowVal').textContent=S.glow===0?'Off':S.glow>=N13?'13 · supernova':S.glow;
+  $('#fractal').value=S.fractal;$('#fractalVal').textContent=['Off','1 level','2 levels','3 levels'][S.fractal];
+  $('#autoHue').checked=S.hue==null;$('#hueBox').style.display=S.hue==null?'none':'';$('#hue').value=S.hue??0;$('#hueVal').textContent=S.hue??'';
+  $('#anim').classList.toggle('on',ui.animate);$('#speed').textContent=`Spin ${ui.speed}×`;$('#view3d').classList.toggle('on',v3.on);$('#view3d').textContent=v3.on?'2D':'3D';
+  $('#styles').innerHTML=Object.entries(STYLES).map(([k,v])=>{const p=palette({...S,style:k});return `<button class="style${k==='prismatic'?' secret':''}${S.style===k?' on':''}" data-style="${k}"><div class="sw" style="background:${p.bg}"><svg viewBox="-50 -50 100 100" width="46" height="46" aria-hidden="true"${k==='prismatic'?' style="filter:hue-rotate(90deg)"':''}><circle r="44" fill="none" stroke="${p.main}" stroke-width="3"/><circle r="34" fill="none" stroke="${p.acc}" stroke-width="1.5"/><path d="${polyD(6,34,2,0)}" fill="none" stroke="${p.main}" stroke-width="2"/></svg></div>${v}</button>`;}).join('');
+}
+function scriptPreview(){const al=makeAlphabet(rngFrom(S.seed+'|'+S.script),S.script);let s='';for(let i=0;i<N13;i++)s+=`<path d="${al[i%al.length]}" transform="translate(${10+i*18.5} 15) scale(1.4)" fill="none" stroke="#b9bfd0" stroke-width="1" stroke-linecap="round"/>`;$('#scriptPrev').innerHTML=s;}
+
+// ---------- state, history, circle codes ----------
+const hist=[];
+function pushHist(){hist.push(JSON.stringify(S));if(hist.length>N42)hist.shift();}
+function commit(fn){pushHist();fn();render();}
+// Circle codes: the seed plus 18 base-36 characters, so a whole circle fits in a plain #name link.
+const EL_ALL=Object.keys(ELEMENTS).concat(Object.keys(SECRET_ELEMENTS)),PU=Object.keys(PURPOSES),STL=Object.keys(STYLES),SCR=Object.keys(SCRIPTS);
+const b36=(n,w)=>Math.max(0,n).toString(36).padStart(w,'0');
+const mask=(arr,all)=>all.reduce((m,x,i)=>arr.includes(x)?m|1<<i:m,0);
+const unmask=(m,all)=>all.filter((_,i)=>m>>i&1);
+const cleanSeed=s=>String(s).toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,21);
+function encode(st){return (cleanSeed(st.seed)||'X')+'-'+b36(EL_ALL.indexOf(st.element),1)+b36(PU.indexOf(st.purpose),1)+b36(mask(st.effects,EFFECTS),2)+b36(mask(st.buffs,BUFFS),2)+b36(mask(st.debuffs,DEBUFFS),2)+b36(st.power,1)+b36(st.rings,1)+b36(st.sym,1)+b36(STL.indexOf(st.style),1)+b36(SCR.indexOf(st.script),1)+(st.hue==null?'zz':b36(st.hue,2))+b36(st.points,1)+b36(st.glow,1)+b36(st.fractal,1)+b36(Math.max(0,MOTION_KEYS.indexOf(st.motion)),1);}
+function decode(code){
+  const s=String(code).trim(),m=s.match(/^(.+)-([0-9a-zA-Z]{19})$/)||s.match(/^(.+)-([0-9a-zA-Z]{18})$/)||s.match(/^(.+)-([0-9a-zA-Z]{15})$/);if(!m)return null;
+  const p=m[2].toLowerCase(),n=(a,b)=>parseInt(p.slice(a,b),36),o={seed:m[1],element:EL_ALL[n(0,1)],purpose:PU[n(1,2)],effects:unmask(n(2,4),EFFECTS),buffs:unmask(n(4,6),BUFFS),debuffs:unmask(n(6,8),DEBUFFS),power:n(8,9),rings:n(9,10),sym:n(10,11),style:STL[n(11,12)],script:SCR[n(12,13)],hue:p.slice(13,15)==='zz'?null:n(13,15)};
+  if(p.length>=18){o.points=n(15,16);o.glow=n(16,17);o.fractal=n(17,18);}
+  if(p.length===19)o.motion=MOTION_KEYS[n(18,19)];
+  return sanitize(o);
+}
+let hT;function saveHash(){clearTimeout(hT);hT=setTimeout(()=>{try{location.replace('#'+encode(S));}catch(e){}},400);}
+function sanitize(o){
+  const t={...S},cl=(v,a,b,d)=>v!=null&&Number.isFinite(+v)?Math.min(b,Math.max(a,Math.round(+v))):d;
+  if(typeof o.seed==='string'&&cleanSeed(o.seed))t.seed=cleanSeed(o.seed);
+  if(ELEMENTS[o.element]||SECRET_ELEMENTS[o.element])t.element=o.element;
+  if(PURPOSES[o.purpose])t.purpose=o.purpose;
+  [['effects',EFFECTS],['buffs',BUFFS],['debuffs',DEBUFFS]].forEach(([k,all])=>{if(Array.isArray(o[k]))t[k]=[...new Set(o[k].filter(x=>all.includes(x)))];});
+  t.power=cl(o.power,1,N13,t.power);t.rings=cl(o.rings,N3,N13,t.rings);t.sym=cl(o.sym,N3,N11,t.sym);
+  t.points=cl(o.points,N3,N13,t.points);t.glow=cl(o.glow,0,N13,t.glow);t.fractal=cl(o.fractal,0,3,t.fractal);
+  if(STYLES[o.style])t.style=o.style;if(SCRIPTS[o.script])t.script=o.script;t.hue=o.hue==null?null:cl(o.hue,0,359,null);
+  t.motion=MOTIONS[o.motion]?o.motion:'none';
+  return t;
+}
+function loadHash(){const h=location.hash.slice(1);if(h==='elsewhere'){setTimeout(()=>teleport(),700);return;}const s=decode(h);if(s){S=s;if(S.power>N7)ui.powerMax=N13;}}
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h==='elsewhere'){teleport();return;}const s=decode(h);if(s&&encode(s)!==encode(S)){pushHist();S=s;if(S.power>N7)ui.powerMax=N13;render();}});
+function randomize(){
+  commit(()=>{const r=Math.random;S.seed=newSeed();
+    S.element=pick(r,Object.keys(ELEMENTS).concat(document.body.classList.contains('unlocked')?Object.keys(SECRET_ELEMENTS):[]));
+    S.purpose=pick(r,Object.keys(PURPOSES));S.effects=EFFECTS.filter(()=>r()<.25).slice(0,4);
+    S.buffs=BUFFS.filter(()=>r()<.25).slice(0,2);S.debuffs=DEBUFFS.filter(()=>r()<.2).slice(0,2);
+    S.power=2+(r()*6|0);S.rings=pick(r,[N3,4,N5,N5,6,N7,N7,8,9]);S.sym=pick(r,[N3,4,N5,6,6,N7,8,9]);
+    S.points=pick(r,[N3,N5,6,N7,N7,8,9,N11]);S.fractal=r()<.18?1:0;
+    fx.pal=null;const made=store.get('made',0)+1;store.set('made',made);fx.gold=made%N21===0;});
+  if(fx.gold)egg('gold','Every 21st circle is gilded.');
+  maybeElsewhere();
+}
+function maybeElsewhere(){if(Math.random()*ELSEWHERE_ODDS<1)setTimeout(()=>teleport(),1300);}
+
+// ---------- summon ----------
+let summonCount=0,lastSummon=0;
+function summon(){
+  const now=Date.now();summonCount=now-lastSummon<3300?summonCount+1:1;lastSummon=now;
+  tmpClass(stage(),'charge',1300);setTimeout(()=>{burst(palette(S).acc);tmpClass(stage(),'shake',500);},900);
+  if(summonCount>=N11){summonCount=0;setTimeout(()=>{toast('The circle overloads…');openGame('misfire');},1400);return;}
+  maybeElsewhere();
+}
+
+// ---------- teleport destinations ----------
+const sceneWrap=(inner,bg)=>`<svg viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="1000" height="700" fill="${bg}"/>${inner}</svg>`;
+const bob=i=>`<animateTransform attributeName="transform" type="translate" values="0 0;0 -13;0 0" dur="${N3+i%N5}s" repeatCount="indefinite"/>`;
+function sDesert(){let s=`<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f1238"/><stop offset=".6" stop-color="#b8546a"/><stop offset="1" stop-color="#f2a65a"/></linearGradient></defs><rect width="1000" height="700" fill="url(#sky)"/><circle cx="720" cy="430" r="72" fill="#ffd9a0" opacity=".9"/>`;
+  for(let i=0;i<N13;i++){const x=60+((i*233)%900),y=80+((i*97)%300),r=12+(i*N7)%N33;s+=`<g transform="translate(${x} ${y})"><g>${bob(i)}<circle r="${r}" fill="none" stroke="#ffe9c7" stroke-width="1.5"/><circle r="${r*.66}" fill="none" stroke="#ffe9c7"/><path d="${polyD(i%2?6:N5,r*.66,2,0)}" fill="none" stroke="#ffe9c7"/></g></g>`;}
+  return sceneWrap(s+`<path d="M0 520Q250 450 500 520T1000 500V700H0Z" fill="#9c5a3c"/><path d="M0 600Q300 540 620 610T1000 590V700H0Z" fill="#6e3a26"/>`,'#1f1238');}
+function sLibrary(){const cols=['#7a2f2f','#2f4f7a','#2f7a4f','#7a6a2f','#5a2f7a','#8a5a3a'];let s='';
+  for(let row=0;row<N3;row++){const y=60+row*110;s+=`<rect x="40" y="${y}" width="920" height="10" fill="#3a2414"/>`;let x=50,i=row*N7;while(x<940){const w=14+(i*N7)%N13,h=50+(i*N11)%N42;s+=`<rect x="${x}" y="${y+10}" width="${w}" height="${h}" fill="${cols[i%6]}"/>`;x+=w+2;i++;}}
+  for(let i=0;i<N7;i++){s+=`<g transform="translate(${120+i*120} ${430+(i%N3)*50}) rotate(${(i*N33)%60-30})"><g>${bob(i)}<rect x="-22" y="-15" width="44" height="30" rx="3" fill="${cols[i%6]}"/><rect x="-20" y="-13" width="40" height="26" fill="#f1e6c8" opacity=".25"/></g></g>`;}
+  s+=`<rect y="660" width="1000" height="40" fill="#2a1a0e"/><g transform="translate(500 660)"><path d="M0 0V-60M-60 -60H60M-60 -60V-90M0 -60V-90M60 -60V-90" stroke="#c9a14a" stroke-width="4" fill="none"/><circle cx="-60" cy="-96" r="7" fill="#ffd27a"/><circle cy="-96" r="7" fill="#ffd27a"/><circle cx="60" cy="-96" r="7" fill="#ffd27a"/></g>`;
+  return sceneWrap(s,'#1c130c');}
+function sVoid(){let s='';for(let i=0;i<N72;i++)s+=`<circle cx="${(i*137)%1000}" cy="${(i*271)%700}" r="${i%N7?.8:1.6}" fill="#fff" opacity="${.2+(i%N5)/10}"/>`;
+  return sceneWrap(s+`<polygon points="460,560 540,560 700,700 300,700" fill="#ffd98a" opacity=".18"/><rect x="460" y="380" width="80" height="180" fill="#ffe7b0" stroke="#fff6dc" stroke-width="3"/><circle cx="525" cy="475" r="4" fill="#9a7a3a"/>`,'#000');}
+function sHall(){let s=`<polygon points="0,0 1000,0 560,330 440,330" fill="#2a2433"/><polygon points="0,700 1000,700 560,370 440,370" fill="#3b2f2a"/>`;
+  for(let i=N72/2-1;i>=0;i--){const k=Math.pow(.9,i),h=380*k,w=80*k,yTop=350-h*.62,off=470*k;[0,1].forEach(j=>{const x=j?500+off-w/2:500-off-w/2;s+=`<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${(i*2+j)%N7===0?'#c9a14a':'#5b3d2b'}" stroke="#1a1310" stroke-width="${Math.max(.3,2*k).toFixed(2)}"/>`;});}
+  return sceneWrap(s,'#1a1620');}
+function sOffice(){return sceneWrap(`<rect width="1000" height="460" fill="#d8d2bf"/><rect y="460" width="1000" height="240" fill="#6d6a5e"/><rect x="360" y="40" width="280" height="20" fill="#fffbe6"><animate attributeName="opacity" values="1;1;.3;1;1;1;.5;1" dur="3.3s" repeatCount="indefinite"/></rect><rect x="300" y="430" width="400" height="24" fill="#8a7458"/><rect x="320" y="454" width="16" height="140" fill="#5c4c38"/><rect x="664" y="454" width="16" height="140" fill="#5c4c38"/><rect x="410" y="300" width="180" height="120" rx="6" fill="#2b2b2b"/><rect x="420" y="310" width="160" height="96" fill="#cfe3ff"/><text x="500" y="352" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#223">You have 42</text><text x="500" y="370" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#223">unread emails.</text><rect x="490" y="420" width="20" height="10" fill="#2b2b2b"/><circle cx="820" cy="300" r="40" fill="#fff" stroke="#333" stroke-width="4"/><path d="M820 300V270M820 300L842 312" stroke="#333" stroke-width="4"/>`,'#d8d2bf');}
+function sMoon(){let s='';for(let i=0;i<N66;i++)s+=`<circle cx="${(i*151)%1000}" cy="${(i*89)%380}" r="${i%9?.8:1.5}" fill="#fff"/>`;
+  return sceneWrap(s+`<circle cx="180" cy="140" r="66" fill="#2f6fd1"/><path d="M150 110q20 -10 30 10t-10 30q-20 5-25-15z" fill="#3fa36b"/><path d="M0 470Q500 420 1000 480V700H0Z" fill="#8d8d93"/><ellipse cx="200" cy="560" rx="60" ry="14" fill="#77777d"/><ellipse cx="800" cy="610" rx="90" ry="18" fill="#77777d"/><rect x="560" y="390" width="220" height="110" fill="#d9d4c7"/><polygon points="550,390 790,390 670,340" fill="#b8423a"/><rect x="640" y="440" width="50" height="60" fill="#5a4a3a"/><rect x="575" y="405" width="190" height="26" fill="#fff"/><text x="670" y="423" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="700" fill="#b8423a">GIFT SHOP · CLOSED</text><text x="670" y="525" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#ddd">Back in 72 years</text>`,'#000');}
+function sTunnel(){let s='';for(let i=0;i<N11;i++){const b=(i*N7/N11).toFixed(2);s+=`<circle cx="500" cy="350" r="0" fill="none" stroke="#c9a8ff" stroke-width="2" stroke-dasharray="${N3+i%N5} ${N7+i%N7}"><animate attributeName="r" from="0" to="800" dur="${N7}s" begin="${b}s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="${N7}s" begin="${b}s" repeatCount="indefinite"/></circle>`;}return sceneWrap(s,'#05040a');}
+const PLACES=[
+  ['The Desert of Floating Circles','The sand hums in seven-part harmony.',sDesert],
+  ['The Upside-Down Library','Every book is shelved on the ceiling. Nobody knows why.',sLibrary],
+  ['The Void With One Door','It is not locked. It has never been locked.',sVoid],
+  ['The Hallway of 72 Doors','Some of them are gold. One of them is yours.',sHall],
+  ['A Very Normal Office','Somehow the strangest place yet.',sOffice],
+  ["The Moon's Gift Shop","Closed. Of course it's closed.",sMoon],
+  ['Inside Your Own Circle','You are the glyph now.',sTunnel],
+];
+function teleport(i){
+  const [name,sub,draw]=PLACES[i??(Math.random()*PLACES.length|0)],el=$('#tele');
+  if(!xBusy)closeModal();
+  el.innerHTML=`${draw()}<div class="cap"><b>${name}</b><span>${sub}</span><button class="btn primary" id="back">Find your way back</button></div>`;
+  el.classList.add('show');egg('teleport');
+  $('#back').onclick=()=>{el.classList.remove('show');el.innerHTML='';toast('You are back. Your circle waited for you.');};
+}
+
+// ---------- saving files ----------
+let dlCap=null;
+(async()=>{try{if(window.claude&&typeof window.claude.use==='function')dlCap=await window.claude.use('downloads');}catch(e){dlCap=null;}})();
+async function saveFile(name,data){
+  if(dlCap){try{await dlCap.save({filename:name,data});toast(`Saved ${name}.`);return true;}
+    catch(e){const c=e&&e.code;toast(c==='declined'?'Save cancelled.':c==='too_large'?'That file is too large to save here. Try a shorter clip or a smaller size.':c==='rate_limited'?'Another save is still open. Finish it, then try again.':'Saving files is not available in this view.');return false;}}
+  if(window.claude){toast('Saving files is not available in this view.');return false;}
+  const blob=data instanceof Blob?data:new Blob([data]),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},3000);toast(`Saved ${name}.`);return true;
+}
+const fileBase=()=>'circle-'+(cleanSeed(S.seed)||'X');
+
+// ---------- Dropbox (the viewer's own Dropbox connector; text files only) ----------
+let mcpCap=null;
+(async()=>{try{if(window.claude&&typeof window.claude.use==='function')mcpCap=await window.claude.use('mcp');}catch(e){mcpCap=null;}})();
+const DBX='Dropbox',DBX_DIR='/Circle Maker',DBX_MAX=5*1024*1024;
+const DBX_CODES=/\b(ALREADY_EXISTS|TEAM_ROOT_NOT_WRITABLE|PERMISSION_DENIED|CONTENT_TOO_LARGE|PARENT_NOT_FOUND|PARENT_NOT_FOLDER|RATE_LIMIT_EXCEEDED|FILE_NOT_FOUND|INVALID_PATH|INVALID_SETTINGS)\b/;
+function dbxToolCode(e){try{const m=(JSON.stringify(e.result??'')+' '+(e.message||'')).match(DBX_CODES);return m?m[1]:null;}catch(_){return null;}}
+async function dbxCall(tool,input){return(await mcpCap.callTool(DBX,tool,input,{cache:false})).payload||{};}
+function stamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;}
+async function saveToDropbox(name,text,link,prog){
+  const bytes=new TextEncoder().encode(text).length;
+  if(bytes>DBX_MAX)throw new Error(`This file is ${(bytes/1048576).toFixed(1)} MB, over Dropbox's 5 MB limit for text uploads. Lower the fractal repeat or ring count, or use Save to keep it on your computer.`);
+  prog('Opening the Circle Maker folder in Dropbox…');
+  try{await dbxCall('create_folder',{path:DBX_DIR});}catch(e){if(e&&e.code!=='tool_error')throw e;} // already there is fine
+  prog(`Uploading ${name}…`);
+  const res=await dbxCall('create_file',{path:`${DBX_DIR}/${name}`,content:text});
+  const where=(res.file&&(res.file.path_display||res.file.path))||res.path_display||`${DBX_DIR}/${name}`;
+  let url=null;
+  if(link){prog('Making a share link…');const l=await dbxCall('create_shared_link',{path_or_file_id:where});url=typeof l.url==='string'?l.url:null;}
+  return{where,url};
+}
+function dbxMessage(e){
+  if(e instanceof Error&&!e.code)return e.message;
+  const tc=dbxToolCode(e);
+  switch(e&&e.code){
+    case 'server_not_connected':case 'server_not_found':return 'Dropbox is not connected for you. Add it in claude.ai Settings → Connectors, then try again.';
+    case 'needs_reauth':return 'Your Dropbox connection has expired. Reconnect Dropbox in claude.ai Settings → Connectors, then try again.';
+    case 'selection_required':return 'You have more than one Dropbox connected. Choose one when claude.ai asks, then try again.';
+    case 'not_in_manifest':case 'approval_required':case 'consent_required':return 'Dropbox access was not allowed for this page. Click the button again and choose Allow when claude.ai asks.';
+    case 'blocked_by_policy':return 'Your organization blocks saving to Dropbox from this page.';
+    case 'tool_error':return tc==='TEAM_ROOT_NOT_WRITABLE'?'Your Dropbox team account cannot create the Circle Maker folder at the top level, so nothing was saved.':tc==='PERMISSION_DENIED'?'Dropbox refused the upload: this account has no write access.':tc==='ALREADY_EXISTS'?'A file with that name is already in Dropbox. Wait a second and try again.':tc==='RATE_LIMIT_EXCEEDED'?'Dropbox is limiting requests right now. Try again in a minute.':`Dropbox could not save the file${tc?` (${tc})`:''}.`;
+    case 'server_unavailable':case 'upstream_error':case 'rate_limited':return 'Dropbox did not answer in time. The file may still have been saved, so check the Circle Maker folder in Dropbox before trying again.';
+    default:return 'Saving to Dropbox is not available in this view.';
+  }
+}
+async function objText(prog){prog('Loading the 3D engine…');await load3D();prog('Building geometry…');await sleep(0);const{root}=buildModel(lastBuild||build(S),S,{plain:true});root.scale.set(.01,.01,.01);root.updateMatrixWorld(true);const t=trimObj(new THREE.OBJExporter().parse(root));root.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose();});return t;}
+// 4 decimals = 0.1 mm at 1 unit per metre; roughly halves the file
+const trimObj=t=>t.replace(/-?\d*\.\d+(?:e[-+]?\d+)?/g,m=>{const v=+m;return Math.abs(v)<5e-5?'0':String(+v.toFixed(4));});
+function showDropboxResult(r){
+  const out=$('#xdout');if(!out)return;out.textContent='';
+  const p=document.createElement('div');p.textContent=`Saved to Dropbox: ${r.where}`;out.appendChild(p);
+  if(r.url){const row=document.createElement('div');row.className='xrow';const a=document.createElement('a');a.href=r.url;a.target='_blank';a.rel='noopener';a.className='btn';a.textContent='Open in Dropbox';a.style.textDecoration='none';
+    const cp=document.createElement('button');cp.className='btn';cp.textContent='Copy link';cp.onclick=()=>{try{navigator.clipboard.writeText(r.url).then(()=>toast('Dropbox link copied.'),()=>toast('Copy the link from Open in Dropbox.'));}catch(e){toast('Copy the link from Open in Dropbox.');}};
+    row.append(a,cp);out.appendChild(row);}
+}
+
+// ---------- Pro: paid exports, checked with Lemon Squeezy license keys ----------
+// Fill these in after setting up your Lemon Squeezy store (see SETUP-PRO.md).
+const PRO={
+  domains:[],            // your own site, e.g. ['circlemaker.app','www.circlemaker.app']. Pro is only enforced there.
+  checkoutUrl:'',        // Lemon Squeezy checkout link for the Pro product
+  storeId:0,productId:0, // so keys from other stores or products are refused
+  price:'$12',
+};
+const PRO_ACTIVE=PRO.domains.includes(location.hostname)||(/^(localhost|127\.0\.0\.1)$/.test(location.hostname)&&/[?&]pro-preview\b/.test(location.search));
+let lic=store.get('license',null);
+const isPro=()=>!PRO_ACTIVE||!!(lic&&lic.ok);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function lsPost(path,body){
+  const r=await fetch('https://api.lemonsqueezy.com/v1/licenses/'+path,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)});
+  return{status:r.status,j:await r.json().catch(()=>({}))};
+}
+const lsMatches=j=>{const m=j&&j.meta;return !PRO.storeId||(!!m&&+m.store_id===+PRO.storeId&&(!PRO.productId||+m.product_id===+PRO.productId));};
+async function activateLicense(key){
+  const{status,j}=await lsPost('activate',{license_key:key,instance_name:'Circle Maker on '+(navigator.userAgentData?.platform||navigator.platform||'a browser')});
+  if(j.activated&&lsMatches(j)){lic={ok:true,key,instance:j.instance&&j.instance.id,checked:Date.now()};store.set('license',lic);return{ok:true};}
+  if(j.activated){lsPost('deactivate',{license_key:key,instance_id:j.instance&&j.instance.id}).catch(()=>{});return{ok:false,msg:'That key belongs to a different product.'};}
+  return{ok:false,msg:j.error?`Lemon Squeezy says: ${j.error}`:status===404?'That license key was not found. Check the receipt email and try again.':'The key could not be activated. Check your connection and try again.'};
+}
+async function revalidateLicense(){ // every 3 days; offline keeps Pro working
+  if(!PRO_ACTIVE||!lic||!lic.key||Date.now()-(lic.checked||0)<3*864e5)return;
+  try{const{j}=await lsPost('validate',{license_key:lic.key,instance_id:lic.instance||''});
+    if(j&&j.valid){lic.checked=Date.now();store.set('license',lic);}
+    else if(j&&j.license_key&&['disabled','expired'].includes(j.license_key.status)){lic=null;store.set('license',null);syncPro();toast('Your Pro license is no longer active on this device.');}
+  }catch(e){}
+}
+async function deactivateLicense(){if(!lic)return;try{await lsPost('deactivate',{license_key:lic.key,instance_id:lic.instance||''});}catch(e){}lic=null;store.set('license',null);syncPro();}
+function syncPro(){const b=$('#proBtn');b.hidden=!PRO_ACTIVE;b.textContent=isPro()?'Pro ✓':'Get Pro';b.classList.toggle('on',isPro());$('#privacyLink').hidden=!PRO_ACTIVE;}
+const proTag=()=>isPro()?'':'<span class="tag">PRO</span>';
+const gate=(fn,why)=>()=>isPro()?fn():openPro(why);
+function openPro(why){
+  if(xBusy)return;
+  showModal(`<div class="mhead"><div><h2>Circle Maker Pro</h2><div class="psub">${why?esc(why)+' ':''}One payment of ${esc(PRO.price)}. No subscription.</div></div><button class="btn" id="pclose">Close</button></div>
+  <ul class="prolist"><li>1080p and 4K video with no watermark, for Premiere Pro and Final Cut Pro</li><li>Transparent PNG sequences for Premiere Pro, After Effects and DaVinci Resolve</li><li>3D model packs: GLB, OBJ and STL</li><li>4096 px PNG images</li><li>Commercial use of everything you export</li></ul>
+  ${lic&&lic.ok?`<div class="psub">Pro is active on this device. Thank you for supporting Circle Maker.</div><div class="xrow"><button class="btn" id="pdeact">Deactivate on this device</button></div>`
+  :`<div class="xrow">${PRO.checkoutUrl?`<a class="btn primary" href="${esc(PRO.checkoutUrl)}" target="_blank" rel="noopener" style="text-decoration:none">Buy Pro · ${esc(PRO.price)}</a>`:'<span class="psub" style="margin:0">Checkout is not set up yet.</span>'}</div>
+  <label class="lbl" for="pkey">Already bought it? Paste the license key from your receipt email.</label>
+  <div style="display:flex;gap:8px"><input class="inc" id="pkey" placeholder="License key" autocomplete="off" spellcheck="false"><button class="btn" id="pact">Activate</button></div>`}
+  <div id="pmsg" class="xnote" aria-live="polite"></div>
+  <details class="xnote"><summary>Pro license terms</summary><p>With Pro you may use images, video and 3D models you export from Circle Maker in personal and commercial work, including client projects, videos, streams, games and printed products. You may not resell or give away the exports as a stand-alone collection of circles (for example a stock or asset pack), and you may not redistribute Circle Maker itself. One license covers one person on up to 3 devices.</p></details>`);
+  $('#pclose').onclick=closeModal;
+  if(lic&&lic.ok){$('#pdeact').onclick=async()=>{await deactivateLicense();toast('Pro deactivated on this device.');closeModal();};return;}
+  $('#pact').onclick=async()=>{const k=$('#pkey').value.trim(),msg=$('#pmsg');if(!k){msg.textContent='Paste your license key first.';return;}
+    const b=$('#pact');b.disabled=true;msg.textContent='Checking your key…';
+    try{const r=await activateLicense(k);if(r.ok){syncPro();toast('Pro unlocked. Enjoy.');openExport();}else msg.textContent=r.msg;}
+    catch(e){msg.textContent='Could not reach Lemon Squeezy. Check your connection and try again.';}
+    finally{if(document.body.contains(b))b.disabled=false;}};
+}
+
+// ---------- export ----------
+let xBusy=false;
+const videoMime=()=>window.MediaRecorder?['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm'].find(t=>{try{return MediaRecorder.isTypeSupported(t);}catch(e){return false;}}):null;
+function openExport(){
+  const vm=videoMime(),vext=vm?(vm.includes('mp4')?'MP4':'WebM'):null;
+  showModal(`<div class="mhead"><div><h2>Export circle</h2><div class="psub">Seed ${S.seed} · ${$('#spellName').textContent}</div></div><button class="btn" id="xclose">Close</button></div>
+  <div class="xsec" style="border:0;margin:0;padding:0"><h3>IMAGE</h3>
+    <div class="chips" id="xbg"><button class="chip on" data-x="bg">Style background</button><button class="chip" data-x="none">Transparent</button></div>
+    <div class="xrow"><select id="xsize" aria-label="Image size"><option value="1024">1024 px</option><option value="2048" selected>2048 px</option><option value="4096">4096 px${isPro()?'':' (Pro)'}</option></select><button class="btn" id="xsvg">Save SVG</button><button class="btn primary" id="xpng">Save PNG</button><button class="btn" id="xvsvg">View SVG code</button></div>
+  </div>
+  <div class="xsec"><h3>VIDEO · PREMIERE PRO, FINAL CUT PRO, DAVINCI RESOLVE</h3>
+    <div class="xrow"><select id="xlen" aria-label="Clip length"><option value="3.3">3.3 seconds</option><option value="7" selected>7 seconds</option><option value="13">13 seconds</option></select>
+      <select id="xcam" aria-label="Camera"><option value="flat">Front view</option><option value="tilt" selected>3D tilt</option>${v3.on?'<option value="view">Current 3D view</option>':''}</select>
+      <select id="xres" aria-label="Video size">${isPro()?'<option value="2160">2160 × 2160 (4K)</option><option value="1080" selected>1080 × 1080</option><option value="720">720 × 720</option>':'<option value="720" selected>720 × 720 · watermark</option><option value="1080">1080 × 1080 (Pro)</option><option value="2160">2160 × 2160 4K (Pro)</option>'}</select></div>
+    <div class="xrow">${vm?`<button class="btn primary" id="xvid">Record ${vext}</button>`:''}<button class="btn" id="xseq">PNG sequence (.zip, transparent)${proTag()}</button></div>
+    <div class="xnote">${vm?(vext==='MP4'?'MP4 (H.264) imports into Premiere Pro and Final Cut Pro.':'This browser records WebM, which Premiere Pro and DaVinci Resolve read. For Final Cut Pro, record in Chrome or Safari to get MP4.'):'This browser cannot record video. Use the PNG sequence.'} A PNG sequence keeps transparency for Premiere Pro, After Effects and DaVinci Resolve. Recording plays the clip in real time.</div>
+  </div>
+  <div class="xsec"><h3>3D MODEL · BLENDER, CINEMA 4D, AFTER EFFECTS, UNITY</h3>
+    <div class="xrow"><button class="btn primary" id="x3d">Save 3D model pack (.zip)${proTag()}</button><button class="btn" id="xvobj">View OBJ code${proTag()}</button></div>
+    <div class="xnote">One .zip with GLB (glTF, with colours), OBJ and STL (for 3D printing). Each ring is its own object, stacked in depth.</div>
+  </div>
+  ${mcpCap?`<div class="xsec"><h3>DROPBOX</h3>
+    <div class="xrow"><button class="btn" id="xdsvg">Save SVG to Dropbox</button><button class="btn" id="xdobj">Save OBJ to Dropbox</button></div>
+    <label class="check" style="margin-top:10px"><input type="checkbox" id="xdlink" checked> Make a share link</label>
+    <div class="xnote">Files go to the Circle Maker folder in your Dropbox. Share links are view-only and private: only people you give access to the file in Dropbox can open them. Dropbox takes text files up to 5 MB here, so videos, PNGs and zips use Save instead.</div>
+    <div id="xdout" class="xnote" aria-live="polite"></div>
+  </div>`:''}
+  <div id="xprog" aria-live="polite"></div>`);
+  if(mcpCap){
+    const dbx=(name,getText)=>run(async prog=>{try{const r=await saveToDropbox(name,await getText(prog),$('#xdlink').checked,prog);showDropboxResult(r);toast('Saved to Dropbox.');}catch(e){throw new Error(dbxMessage(e));}});
+    $('#xdsvg').onclick=()=>dbx(`${fileBase()}-${stamp()}.svg`,async()=>svgString(withBg,+$('#xsize').value));
+    $('#xdobj').onclick=()=>dbx(`${fileBase()}-${stamp()}.obj`,objText);
+  }
+  let withBg=true;
+  $('#xbg').onclick=e=>{const c=e.target.closest('.chip');if(!c)return;withBg=c.dataset.x==='bg';[...$('#xbg').children].forEach(x=>x.classList.toggle('on',x===c));};
+  $('#xclose').onclick=closeModal;
+  $('#xsvg').onclick=()=>saveFile(fileBase()+'.svg',svgString(withBg,+$('#xsize').value));
+  $('#xpng').onclick=()=>{const size=+$('#xsize').value;if(size>2048&&!isPro()){openPro('4096 px images are part of Pro.');return;}
+    run(async prog=>{prog('Rendering PNG…');const blob=await svgToPng(svgString(withBg,size),size);await saveFile(fileBase()+'.png',blob);});};
+  if(vm)$('#xvid').onclick=()=>{const res=+$('#xres').value;if(res>720&&!isPro()){openPro('1080p and 4K video without a watermark are part of Pro.');return;}
+    run(async prog=>{const{blob,ext}=await recordVideo(+$('#xlen').value,$('#xcam').value,res,prog,!isPro());await saveFile(`${fileBase()}.${ext}`,blob);});};
+  $('#xseq').onclick=gate(()=>run(async prog=>{const blob=await pngSequence(+$('#xlen').value,$('#xcam').value,+$('#xres').value,prog);await saveFile(`${fileBase()}-png-sequence.zip`,blob);}),'Transparent PNG sequences are part of Pro.');
+  $('#x3d').onclick=gate(()=>run(async prog=>{const blob=await modelPack(prog);await saveFile(`${fileBase()}-3d.zip`,blob);}),'3D model packs are part of Pro.');
+  $('#xvsvg').onclick=()=>openCode('svg',svgString(withBg,+$('#xsize').value));
+  $('#xvobj').onclick=gate(()=>run(async prog=>{const t=await objText(prog);xBusy=false;openCode('obj',t);}),'3D model files are part of Pro.');
+}
+// Code viewer: shows the file's code, with a filename whose extension is fixed.
+const CODE_SHOW=200000;
+function openCode(ext,code){
+  const kb=Math.round(new TextEncoder().encode(code).length/1024),big=code.length>CODE_SHOW;
+  showModal(`<div class="mhead"><div><h2>${ext.toUpperCase()} code</h2><div class="psub">${kb.toLocaleString()} KB${big?` · showing the first ${CODE_SHOW.toLocaleString()} characters; Copy and Save use the whole file`:''}</div></div><div class="xrow" style="margin:0"><button class="btn" id="cdback">Back</button><button class="btn" id="cdclose">Close</button></div></div>
+  <textarea id="cdtext" class="inc" rows="14" readonly spellcheck="false" aria-label="${ext.toUpperCase()} code" style="font:12px/1.45 ui-monospace,Menlo,monospace;white-space:pre;overflow:auto;resize:vertical"></textarea>
+  <label class="lbl" for="cdname">File name</label>
+  <div style="display:flex;align-items:center;gap:6px"><input id="cdname" class="inc" spellcheck="false" autocomplete="off"><b style="font:600 13px ui-monospace,Menlo,monospace;color:var(--muted)">.${ext}</b></div>
+  <div class="xrow"><button class="btn" id="cdcopy">Copy code</button><button class="btn primary" id="cdsave">Save .${ext}${ext==='obj'?' (in a .zip)':''}</button>${mcpCap?`<button class="btn" id="cddbx">Save to Dropbox</button><label class="check"><input type="checkbox" id="xdlink" checked> Share link</label>`:''}</div>
+  ${ext==='obj'?'<div class="xnote">Published pages cannot save .obj files directly, so Save puts your .obj inside a .zip. Copy and Dropbox keep the plain .obj.</div>':''}
+  <div id="xdout" class="xnote" aria-live="polite"></div><div id="xprog" aria-live="polite"></div>`);
+  $('#cdtext').value=big?code.slice(0,CODE_SHOW)+'\n…':code;
+  $('#cdname').value=fileBase();
+  const name=()=>($('#cdname').value.trim().replace(/\.(svg|obj|zip|txt)$/i,'').replace(/[\\/:*?"<>|]+/g,'-').slice(0,120)||fileBase())+'.'+ext;
+  $('#cdback').onclick=()=>{if(!xBusy)openExport();};$('#cdclose').onclick=closeModal;
+  $('#cdcopy').onclick=()=>{try{navigator.clipboard.writeText(code).then(()=>toast(`${ext.toUpperCase()} code copied.`),()=>{const t=$('#cdtext');t.focus();t.select();toast('Press Ctrl+C or ⌘C to copy.');});}catch(e){const t=$('#cdtext');t.focus();t.select();}};
+  $('#cdsave').onclick=()=>run(async prog=>{const n=name();if(ext==='svg'){await saveFile(n,code);return;}
+    prog('Loading the zip tool…');await loadScript(JSZIP_URL);const z=new JSZip();z.file(n,code);await saveFile(n.replace(/\.obj$/,'.zip'),await z.generateAsync({type:'blob',compression:'DEFLATE'}));});
+  if(mcpCap)$('#cddbx').onclick=()=>run(async prog=>{try{const r=await saveToDropbox(name().replace(/(\.\w+)$/,`-${stamp()}$1`),code,$('#xdlink').checked,prog);showDropboxResult(r);toast('Saved to Dropbox.');}catch(e){throw new Error(dbxMessage(e));}});
+}
+async function run(job){
+  if(xBusy){toast('An export is already running.');return;}
+  xBusy=true;const el=$('#xprog'),btns=[...document.querySelectorAll('#modal .xrow button')];btns.forEach(b=>b.disabled=true);
+  const prog=(msg,frac)=>{if(!el)return;el.innerHTML=`${msg}${frac!=null?`<div class="bar"><i style="width:${Math.round(frac*100)}%"></i></div>`:''}`;};
+  try{await job(prog);prog('Done.');}catch(e){prog(e&&e.message?e.message:'The export failed. Try again.');}
+  finally{xBusy=false;btns.forEach(b=>b.disabled=false);}
+}
+function svgString(withBg,size){const c=svg.cloneNode(true);c.setAttribute('xmlns','http://www.w3.org/2000/svg');c.setAttribute('width',size);c.setAttribute('height',size);c.removeAttribute('class');c.removeAttribute('style');if(!withBg)c.querySelector('#bg')?.remove();c.querySelectorAll('.ring').forEach(g=>{g.removeAttribute('class');g.removeAttribute('style');});return new XMLSerializer().serializeToString(c);}
+function svgToPng(str,size){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=c.height=size;c.getContext('2d').drawImage(img,0,0,size,size);c.toBlob(b=>b?res(b):rej(new Error('The PNG could not be made.')),'image/png');};img.onerror=()=>rej(new Error('The PNG could not be rendered.'));img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(str);});}
+async function makeEngine(size,cam,transparent,prog){
+  prog('Loading the 3D engine…');await load3D();
+  const cv=document.createElement('canvas');cv.width=cv.height=size;
+  const eng=new Engine(cv,{transparent,bloom:!transparent});eng.r.setPixelRatio(1);eng.resize(size,size);
+  if(cam==='flat')eng.flat();else if(cam==='view'&&v3.eng){eng.camera.position.copy(v3.eng.camera.position);eng.camera.quaternion.copy(v3.eng.camera.quaternion);}
+  return{eng,cv};
+}
+async function recordVideo(secs,cam,size,prog,watermark=false){
+  const mime=videoMime();if(!mime)throw new Error('This browser cannot record video.');
+  const{eng,cv}=await makeEngine(size,cam,false,prog);
+  // free videos are drawn through a 2D canvas that adds a small corner credit
+  let src=cv,wctx=null;if(watermark){src=document.createElement('canvas');src.width=src.height=size;wctx=src.getContext('2d');}
+  const stamp2=()=>{if(!wctx)return;wctx.drawImage(cv,0,0);wctx.font=`600 ${Math.round(size*.03)}px -apple-system,"Segoe UI",Roboto,sans-serif`;wctx.textAlign='right';wctx.textBaseline='bottom';wctx.fillStyle='rgba(255,255,255,.6)';wctx.fillText('Made with Circle Maker',size*.965,size*.965);};
+  const _frame=eng.frame.bind(eng);eng.frame=t=>{_frame(t);stamp2();};
+  try{
+    const stream=src.captureStream(30),rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:16_000_000}),chunks=[];
+    rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+    const stopped=new Promise(r=>{rec.onstop=r;});rec.start(250);
+    const t0=performance.now(),t3=v3.t;
+    // a timer, not requestAnimationFrame, so a hidden tab slows the recording down but never stalls it
+    await new Promise(res=>{(function f(){const t=(performance.now()-t0)/1000;eng.frame(t3+t*ui.speed);prog(`Recording… ${Math.min(t,secs).toFixed(1)} of ${secs} s`,Math.min(1,t/secs));if(t<secs)setTimeout(f,1000/30);else res();})();});
+    rec.stop();await stopped;stream.getTracks().forEach(t=>t.stop());
+    if(!chunks.length)throw new Error('Nothing was recorded. Keep this tab in front while recording, then try again.');
+    return{blob:new Blob(chunks,{type:mime.split(';')[0]}),ext:mime.includes('mp4')?'mp4':'webm'};
+  }finally{eng.dispose();}
+}
+async function pngSequence(secs,cam,size,prog){
+  const{eng,cv}=await makeEngine(size,cam,true,prog);
+  try{
+    prog('Loading the zip tool…');await loadScript(JSZIP_URL);
+    const fps=30,N=Math.round(secs*fps),zip=new JSZip(),dir=zip.folder(fileBase()+'-png'),t3=v3.t;
+    for(let i=0;i<N;i++){eng.frame(t3+i/fps*ui.speed);const b=await new Promise(r=>cv.toBlob(r,'image/png'));dir.file(`${fileBase()}_${String(i).padStart(4,'0')}.png`,b);if(i%3===0){prog(`Rendering frame ${i+1} of ${N}…`,i/N);await sleep(0);}}
+    dir.file('README.txt',`Circle Maker PNG sequence\n${N} frames, ${fps} fps, ${size} x ${size}, transparent background.\nPremiere Pro: File > Import, pick the first frame, tick "Image Sequence".\nAfter Effects: File > Import > File, tick "PNG Sequence".\nDaVinci Resolve: drag the folder into the Media Pool.\nCircle code: ${encode(S)}\n`);
+    prog('Zipping frames…',1);return await zip.generateAsync({type:'blob'});
+  }finally{eng.dispose();}
+}
+async function modelPack(prog){
+  prog('Loading the 3D engine…');await load3D();await loadScript(JSZIP_URL);
+  prog('Building geometry…');await sleep(0);
+  const{root}=buildModel(lastBuild||build(S),S,{plain:true});root.scale.set(.01,.01,.01);root.updateMatrixWorld(true); // 1 unit = 1 m, about 10 m across
+  const glb=await new Promise((res,rej)=>new THREE.GLTFExporter().parse(root,res,e=>rej(new Error('The GLB export failed.')),{binary:true}));
+  prog('Writing OBJ and STL…');await sleep(0);
+  const obj=trimObj(new THREE.OBJExporter().parse(root)),stl=new THREE.STLExporter().parse(root,{binary:true});
+  const zip=new JSZip(),b=fileBase();zip.file(`${b}.glb`,glb);zip.file(`${b}.obj`,obj);zip.file(`${b}.stl`,stl.buffer);
+  zip.file('README.txt',`Circle Maker 3D model pack\n${b}.glb  glTF binary with colours and one object per ring (Blender, Cinema 4D, After Effects, Unity, Unreal)\n${b}.obj  Wavefront OBJ geometry\n${b}.stl  STL for 3D printing\nScale: about 10 units across. Rings are stacked ${LAYER_Z/100} units apart in depth.\nCircle code: ${encode(S)}\n`);
+  root.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose();});
+  prog('Zipping…',1);return await zip.generateAsync({type:'blob',compression:'DEFLATE'});
+}
+
+// ---------- modals ----------
+let game=null,gameActive=false;
+function showModal(html){$('#modal').innerHTML=html;$('#ov').classList.add('show');}
+function closeModal(){if(xBusy){toast('Wait for the export to finish.');return;}if(game){game.stop();game=null;}gameActive=false;$('#ov').classList.remove('show');}
+$('#ov').addEventListener('click',e=>{if(e.target.id==='ov')closeModal();});
+function openCodex(){
+  egg('codex');const ids=Object.keys(EGGS),n=ids.filter(i=>found[i]).length,sg=store.get('sigils',{}),ns=Object.keys(sg).length;
+  showModal(`<div class="mhead"><div><h2>The Codex</h2><div class="psub">${n} of ${ids.length} secrets · ${ns} of 72 named sigils</div></div><button class="btn" id="cclose">Close</button></div>
+  <div class="codex-grid">${ids.map(i=>found[i]?`<div class="egg found">${EGGS[i][0]}<small>${EGGS[i][1]}</small></div>`:`<div class="egg">???<small>${EGGS[i][2]}</small></div>`).join('')}</div>
+  <h3 style="font-size:11px;letter-spacing:.08em;color:var(--muted)">THE 72 SIGILS</h3>
+  <div class="sigils">${Array.from({length:N72},(_,i)=>sg[i+1]?`<div class="sig found" title="${sg[i+1]}">${i+1}</div>`:`<div class="sig">${i+1}</div>`).join('')}</div>`);
+  $('#cclose').onclick=closeModal;
+}
+function openShare(){
+  const code=encode(S);try{location.replace('#'+code);}catch(e){}
+  showModal(`<div class="mhead"><div><h2>Share this circle</h2><div class="psub">Anyone who pastes this code into the Seed box gets this exact circle. The page link carries it too.</div></div><button class="btn" id="sclose">Close</button></div>
+  <div style="display:flex;gap:8px"><input class="inc" id="scode" readonly aria-label="Circle code"><button class="btn primary" id="scopy">Copy</button></div>`);
+  const i=$('#scode');i.value=code;$('#sclose').onclick=closeModal;
+  $('#scopy').onclick=()=>{try{navigator.clipboard.writeText(code).then(()=>toast('Circle code copied.'),()=>{i.focus();i.select();toast('Press Ctrl+C or ⌘C to copy.');});}catch(e){i.focus();i.select();}};
+}
+
+// ---------- hidden games ----------
+function loop(fn){let id,last=performance.now(),on=true;function f(t){if(!on)return;const dt=Math.min(.05,(t-last)/1000);last=t;fn(dt,t);id=requestAnimationFrame(f);}id=requestAnimationFrame(f);return()=>{on=false;cancelAnimationFrame(id);};}
+const canvasPt=(cv,e)=>{const b=cv.getBoundingClientRect();return[(e.clientX-b.left)/b.width*440,(e.clientY-b.top)/b.height*440];};
+const GAMES={
+  seal:{title:'Ring Arcade: Seal Lock',egg:'konami',help:'Press Space or tap to lock each ring when its mark reaches the top line.',start(cv,status){
+    const ctx=cv.getContext('2d'),P=palette({...S,style:'glow'}),V=[2.1,-2.9,3.7];let rings,idx,score,done,diffs;
+    function reset(){rings=[190,140,90].map((r,i)=>({r,a:Math.random()*6,v:V[i],locked:false}));idx=0;score=0;done=false;diffs=[];status('Press Space or tap to lock each ring when its mark reaches the top line.');}
+    function act(){if(done){reset();return;}const g=rings[idx],d=((g.a-TOP)%(2*Math.PI)+3*Math.PI)%(2*Math.PI)-Math.PI,deg=Math.abs(d*180/Math.PI),pts=Math.max(0,Math.round(100-deg*2.2));
+      diffs.push(deg);score+=pts;g.locked=true;idx++;rings.forEach(x=>{if(!x.locked)x.v*=1.33;});
+      if(idx===N3){done=true;const perfect=diffs.every(x=>x<N7);status(`Score ${score} / 300${perfect?' · FLAWLESS SEAL':''} · tap to play again`);if(perfect)egg('perfectseal');}
+      else status(`Ring ${idx} locked (+${pts}). Score ${score}`);}
+    reset();const key=e=>{if(e.code==='Space'||e.key==='Enter'){e.preventDefault();act();}};
+    document.addEventListener('keydown',key);cv.onpointerdown=act;
+    const stop=loop(dt=>{ctx.clearRect(0,0,440,440);ctx.save();ctx.translate(220,220);ctx.strokeStyle='#ffffff55';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,-215);ctx.lineTo(0,-60);ctx.stroke();
+      rings.forEach((g,i)=>{if(!g.locked)g.a+=g.v*dt;if(i===idx&&!done){ctx.strokeStyle='#ffffff22';ctx.lineWidth=14;ctx.beginPath();ctx.arc(0,0,g.r,0,7);ctx.stroke();}
+        ctx.strokeStyle=g.locked?P.acc:P.main;ctx.lineWidth=g.locked?4:2;ctx.beginPath();ctx.arc(0,0,g.r,0,7);ctx.stroke();
+        ctx.fillStyle=g.locked?P.acc:'#fff';ctx.beginPath();ctx.arc(Math.cos(g.a)*g.r,Math.sin(g.a)*g.r,9,0,7);ctx.fill();});ctx.restore();});
+    return{stop(){stop();document.removeEventListener('keydown',key);}};}},
+  memory:{title:'Glyph Memory',egg:'memory',help:'Watch the glyphs light up, then repeat the sequence.',start(cv,status){
+    const ctx=cv.getContext('2d'),P=palette({...S,style:'glow'}),al=makeAlphabet(rngFrom(S.seed+'mem'),S.script,4).map(d=>new Path2D(d));
+    const pads=[[-1,-1],[1,-1],[-1,1],[1,1]].map(([x,y])=>({x:220+x*100,y:220+y*100}));const timers=[];let seq=[],inp=0,showing=true,lit=-1,best=0,dead=false;
+    function next(){seq.push(Math.random()*4|0);inp=0;showing=true;status(`Round ${seq.length}: watch…`);let i=0;const iv=setInterval(()=>{if(i>=seq.length*2){clearInterval(iv);showing=false;lit=-1;status(`Round ${seq.length}: your turn`);return;}lit=i%2===0?seq[i/2|0]:-1;i++;},420);timers.push(iv);}
+    cv.onpointerdown=e=>{if(showing)return;if(dead){dead=false;seq=[];next();return;}const[x,y]=canvasPt(cv,e),p=pads.findIndex(p=>Math.abs(p.x-x)<85&&Math.abs(p.y-y)<85);if(p<0)return;
+      lit=p;timers.push(setTimeout(()=>{if(!showing)lit=-1;},200));
+      if(p===seq[inp]){inp++;if(inp===seq.length){best=Math.max(best,seq.length);if(seq.length===N7)egg('memory7','Seven glyphs remembered.');showing=true;timers.push(setTimeout(next,600));}}
+      else{dead=true;status(`The sequence broke at round ${seq.length}. Best: ${best}. Tap to retry.`);}};
+    timers.push(setTimeout(next,700));
+    const stop=loop(()=>{ctx.clearRect(0,0,440,440);pads.forEach((p,i)=>{ctx.fillStyle=lit===i?P.acc:'#14161f';ctx.strokeStyle=P.main;ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(p.x-85,p.y-85,170,170,18);ctx.fill();ctx.stroke();
+      ctx.save();ctx.translate(p.x,p.y);ctx.scale(7,7);ctx.strokeStyle=lit===i?'#000':P.main;ctx.lineWidth=.35;ctx.lineCap='round';ctx.stroke(al[i]);ctx.restore();});});
+    return{stop(){stop();timers.forEach(t=>{clearInterval(t);clearTimeout(t);});}};}},
+  snake:{title:'Ouroboros',egg:'ouroboros',help:'↑ / ↓ (or tap outside / inside the serpent) to change lanes. Eat glyphs. Don’t bite your tail.',start(cv,status){
+    const ctx=cv.getContext('2d'),P=palette({...S,style:'glow'}),L=[190,150,110,70],C=N72;let body,food,score,dead,acc,lane;
+    const spawn=()=>{let f;do{f={l:Math.random()*L.length|0,c:Math.random()*C|0};}while(body.some(b=>b.l===f.l&&b.c===f.c));return f;};
+    function reset(){body=[];for(let i=0;i<N5;i++)body.push({l:1,c:(C-i)%C});lane=1;food=spawn();score=0;dead=false;acc=0;status('Score 0');}
+    reset();
+    const key=e=>{if(e.key==='ArrowUp'||e.key==='w'){e.preventDefault();lane=Math.max(0,lane-1);}if(e.key==='ArrowDown'||e.key==='s'){e.preventDefault();lane=Math.min(L.length-1,lane+1);}if(e.code==='Space'&&dead){e.preventDefault();reset();}};
+    document.addEventListener('keydown',key);
+    cv.onpointerdown=e=>{if(dead){reset();return;}const[x,y]=canvasPt(cv,e),d=Math.hypot(x-220,y-220);lane=d>L[body[0].l]?Math.max(0,body[0].l-1):Math.min(L.length-1,body[0].l+1);};
+    const pos=(l,c)=>{const a=TOP+c/C*2*Math.PI;return[Math.cos(a)*L[l],Math.sin(a)*L[l]];};
+    const stop=loop(dt=>{
+      if(!dead){acc+=dt;const step=1/(N11+Math.min(score,N21)*.5);while(acc>step){acc-=step;const h=body[0],nh={l:lane,c:(h.c+1)%C};
+        if(body.some(b=>b.l===nh.l&&b.c===nh.c)){dead=true;status(`The serpent bit its tail. Length ${body.length}. Tap or Space to retry.`);break;}
+        body.unshift(nh);if(nh.l===food.l&&nh.c===food.c){score++;food=spawn();status(`Score ${score}`);if(body.length===N21)egg('serpent21','The serpent is 21 long.');}else body.pop();}}
+      ctx.clearRect(0,0,440,440);ctx.save();ctx.translate(220,220);ctx.strokeStyle='#ffffff14';ctx.lineWidth=1;L.forEach(r=>{ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.stroke();});
+      const[fx_,fy]=pos(food.l,food.c);ctx.fillStyle=P.acc;ctx.beginPath();ctx.arc(fx_,fy,7,0,7);ctx.fill();
+      body.forEach((b,i)=>{const[x,y]=pos(b.l,b.c);ctx.fillStyle=i===0?'#fff':P.main;ctx.globalAlpha=1-i/(body.length+N13);ctx.beginPath();ctx.arc(x,y,i===0?8:6,0,7);ctx.fill();});
+      ctx.globalAlpha=1;ctx.restore();});
+    return{stop(){stop();document.removeEventListener('keydown',key);}};}},
+  misfire:{title:'Misfire!',egg:'misfire',help:'Survive 13 seconds. Move with mouse, touch, or arrow keys.',start(cv,status){
+    const ctx=cv.getContext('2d'),P=palette({...S,style:'glow'}),keys={};let p,sparks,t,sp,dead,won;
+    function reset(){p={x:220,y:330};sparks=[];t=0;sp=0;dead=false;won=false;}reset();
+    const kd=e=>{keys[e.key]=true;if(/Arrow/.test(e.key))e.preventDefault();if(e.code==='Space'&&(dead||won)){e.preventDefault();reset();}},ku=e=>{keys[e.key]=false;};
+    document.addEventListener('keydown',kd);document.addEventListener('keyup',ku);
+    const mv=e=>{[p.x,p.y]=canvasPt(cv,e);};cv.onpointermove=mv;cv.onpointerdown=e=>{if(dead||won)reset();mv(e);};
+    const stop=loop(dt=>{
+      if(!dead&&!won){t+=dt;sp+=dt;const rate=1/(N7+t*1.5);while(sp>rate){sp-=rate;const a=Math.random()*Math.PI*2,v=110+Math.random()*130+t*9;sparks.push({x:220,y:220,vx:Math.cos(a)*v,vy:Math.sin(a)*v});}
+        const step=260*dt;if(keys.ArrowLeft)p.x-=step;if(keys.ArrowRight)p.x+=step;if(keys.ArrowUp)p.y-=step;if(keys.ArrowDown)p.y+=step;
+        const dx=p.x-220,dy=p.y-220,d=Math.hypot(dx,dy);if(d>200){p.x=220+dx/d*200;p.y=220+dy/d*200;}
+        sparks.forEach(s=>{s.x+=s.vx*dt;s.y+=s.vy*dt;if(Math.hypot(s.x-p.x,s.y-p.y)<10)dead=true;});sparks=sparks.filter(s=>Math.abs(s.x-220)<240&&Math.abs(s.y-220)<240);
+        if(dead)status(`Singed at ${t.toFixed(1)}s. Tap or Space to retry.`);else if(t>=N13){won=true;status('Misfire contained!');egg('contained','You contained the misfire.');}else status(`${(N13-t).toFixed(1)}s left`);}
+      ctx.clearRect(0,0,440,440);ctx.strokeStyle=P.main;ctx.lineWidth=2;ctx.beginPath();ctx.arc(220,220,208,0,7);ctx.stroke();
+      ctx.fillStyle=P.acc;ctx.beginPath();ctx.arc(220,220,14+Math.sin(t*N13)*3,0,7);ctx.fill();
+      ctx.fillStyle='#ffd27a';sparks.forEach(s=>{ctx.beginPath();ctx.arc(s.x,s.y,3.3,0,7);ctx.fill();});
+      ctx.fillStyle=dead?'#ff5d5d':'#fff';ctx.beginPath();ctx.arc(p.x,p.y,7,0,7);ctx.fill();});
+    return{stop(){stop();document.removeEventListener('keydown',kd);document.removeEventListener('keyup',ku);}};}},
+};
+function openGame(kind){
+  if(xBusy)return;
+  const G=GAMES[kind];closeModal();egg(G.egg);
+  showModal(`<div class="mhead"><div><h2>${G.title}</h2><div class="psub" id="gstat">${G.help}</div></div><button class="btn" id="gclose">Close</button></div><canvas id="gameCanvas" width="440" height="440"></canvas>`);
+  $('#gclose').onclick=closeModal;gameActive=true;game=G.start($('#gameCanvas'),s=>{const el=$('#gstat');if(el)el.textContent=s;});
+}
+
+// ---------- build the controls ----------
+$('#elements').innerHTML=Object.keys(ELEMENTS).map(k=>chip(k,'element',k)).join('')+Object.keys(SECRET_ELEMENTS).map(k=>chip(k,'element',k,'secret')).join('');
+$('#effects').innerHTML=EFFECTS.map(k=>chip(k,'effects',k)).join('');
+$('#buffs').innerHTML=BUFFS.map(k=>chip(k,'buffs',k)).join('');
+$('#debuffs').innerHTML=DEBUFFS.map(k=>chip(k,'debuffs',k)).join('');
+$('#motions').innerHTML=Object.entries(MOTIONS).map(([k,v])=>chip(v,'motion',k)).join('');
+$('#purpose').innerHTML=Object.keys(PURPOSES).map(k=>`<option>${k}</option>`).join('');
+$('#script').innerHTML=Object.entries(SCRIPTS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+
+document.addEventListener('click',e=>{
+  const c=e.target.closest('.chip[data-g]');
+  if(c){const g=c.dataset.g,v=c.dataset.v;
+    if(g==='motion'){setMotion(v);
+      const seen=store.get('motions',{});seen[v]=1;store.set('motions',seen);if(MOTION_KEYS.every(m=>seen[m]))egg('depth','Every way a circle can move.');return;} // motion needs no rebuild
+    commit(()=>{if(g==='element'){S.element=v;fx.pal=null;}else{const a=S[g],i=a.indexOf(v);i>=0?a.splice(i,1):a.push(v);}});return;}
+  const sb=e.target.closest('.style[data-style]');if(sb)commit(()=>{S.style=sb.dataset.style;S.glow=STYLE_GLOW[S.style]??S.glow;});
+});
+$('#purpose').addEventListener('change',e=>commit(()=>{S.purpose=e.target.value;}));
+$('#script').addEventListener('change',e=>commit(()=>{S.script=e.target.value;}));
+['power','rings','sym','points','glow','fractal','hue'].forEach(id=>{const el=$('#'+id);let drag=false;
+  el.addEventListener('input',()=>{if(!drag){pushHist();drag=true;}S[id]=+el.value;if(id==='power'&&S.power===N7&&ui.powerMax===N7&&!found.limit&&Math.random()<1/N3)toast('The seal strains at seven…');render();});
+  el.addEventListener('change',()=>{drag=false;});});
+$('#autoHue').addEventListener('change',e=>commit(()=>{S.hue=e.target.checked?null:(ELEMENTS[S.element]||SECRET_ELEMENTS[S.element]).h;}));
+$('#rand').onclick=randomize;
+$('#undo').onclick=()=>{if(!hist.length){toast('Nothing to undo.');return;}S=JSON.parse(hist.pop());render();};
+$('#share').onclick=openShare;
+$('#exportBtn').onclick=openExport;
+$('#anim').onclick=()=>{ui.animate=!ui.animate;svg.classList.toggle('paused',!ui.animate);syncUI();};
+$('#speed').onclick=()=>{ui.speed=ui.speed===1?2:ui.speed===2?.5:1;render();};
+$('#view3d').onclick=toggle3D;
+$('#summon').onclick=summon;
+$('#inc').addEventListener('keydown',e=>{if(e.key==='Enter'){speak(e.target.value);e.target.value='';}});
+$('#seed').addEventListener('change',()=>{
+  const full=decode($('#seed').value);if(full){commit(()=>{S=full;if(S.power>N7)ui.powerMax=N13;});toast('Circle code loaded.');return;}
+  const v=cleanSeed($('#seed').value)||newSeed();
+  commit(()=>{S.seed=v;fx.pal=null;
+    if(v==='42')Object.assign(S,{element:'Water',purpose:'Divination',effects:['Heal'],buffs:['Regen'],debuffs:[],power:N3,rings:N5,sym:N7,points:N7,glow:0,fractal:0,style:'linework',script:'celestial',hue:null});
+    if(v==='1138')fx.pal={ink:'#9aa0a8',bg:'#f7f7f7'};});
+  if(v==='42')egg('dontpanic',"Don't panic.");
+  if(v==='404'){egg('notfound','Circle not found.');tmpClass(stage(),'cursed',4200);}
+  if(v==='1138')egg('thx','Everything is white and calm.');
+});
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));['left','right'].forEach(id=>$('#'+id).classList.toggle('show',id===b.dataset.tab));});
+
+// 3: triple-click the logo
+$('#logo').addEventListener('click',e=>{if(e.detail===N3)openCodex();});
+// 7: tap a maxed-out power value seven times
+let pclicks=[];
+$('#powerVal').addEventListener('click',()=>{if(ui.powerMax!==N7||S.power!==N7)return;const now=Date.now();pclicks=pclicks.filter(t=>now-t<3300);pclicks.push(now);
+  if(pclicks.length>=N7){pclicks=[];toast('The seal creaks…');setTimeout(()=>{unlockPower();toast('Limit broken. Power now goes to 13.');},900);}});
+// 5: tap the core five times · 42: hold the circle for 42 seconds
+let coreClicks=[],holdT;
+$('#wrap').addEventListener('pointerdown',e=>{
+  if(!v3.on){const b=svg.getBoundingClientRect(),x=(e.clientX-b.left)/b.width*1000-500,y=(e.clientY-b.top)/b.height*1000-500;
+    if(Math.hypot(x,y)<96){const now=Date.now();coreClicks=coreClicks.filter(t=>now-t<2100);coreClicks.push(now);if(coreClicks.length>=N5){coreClicks=[];openGame('memory');}}}
+  clearTimeout(holdT);holdT=setTimeout(towel,N42*1000);
+});
+['pointerup','pointerleave','pointercancel'].forEach(ev=>$('#wrap').addEventListener(ev,()=>clearTimeout(holdT)));
+
+// typed secrets, the Konami code, Escape
+const KONAMI=['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];let kpos=0,buf='';
+const TYPED=WORDS.map(w=>w.k).concat(['ouroboros','elsewhere']).sort((a,b)=>b.length-a.length);
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if($('#tele').classList.contains('show'))$('#back').click();else closeModal();return;}
+  if(gameActive)return;
+  const t=e.target,inField=(t.tagName==='INPUT'&&t.type!=='range'&&t.type!=='checkbox')||t.tagName==='SELECT'||t.tagName==='TEXTAREA';
+  if(inField)return;
+  const k=e.key.length===1?e.key.toLowerCase():e.key;
+  if(k===KONAMI[kpos]){kpos++;if(kpos===KONAMI.length){kpos=0;openGame('seal');return;}}else kpos=k===KONAMI[0]?1:0;
+  if(e.key.length===1&&!e.metaKey&&!e.ctrlKey){buf=(buf+e.key.toLowerCase()).replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').slice(-N42);const hit=TYPED.find(w=>buf.endsWith(w));if(hit){buf='';speak(hit);}}
+});
+
+// ---------- go ----------
+$('#proBtn').onclick=()=>openPro();
+loadHash();unlocks();render();maybeElsewhere();syncPro();revalidateLicense();
+// Open in 3D. The 2D circle shows while the 3D engine loads; without WebGL it simply stays 2D.
+(()=>{let gl=false;try{const c=document.createElement('canvas');gl=!!(c.getContext('webgl2')||c.getContext('webgl'));}catch(e){}if(gl)toggle3D(true);})();
+</script>
+
+</body>
+</html>
