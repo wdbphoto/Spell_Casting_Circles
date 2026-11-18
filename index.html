@@ -170,6 +170,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <aside class="panel show" id="left">
     <div class="ptitle">Spell attributes</div><div class="psub">What the circle does</div>
     <div class="sec"><h3>INCANTATION</h3><input class="inc" id="inc" placeholder="Speak a word of power… (Enter)" autocomplete="off" spellcheck="false" aria-label="Incantation"></div>
+    <div class="sec"><h3>TRADITION</h3><div class="chips" id="trads"></div></div>
     <div class="sec"><h3>ELEMENT</h3><div class="chips" id="elements"></div></div>
     <div class="sec"><h3>PURPOSE</h3><select id="purpose" aria-label="Purpose"></select></div>
     <div class="sec"><h3>EFFECTS</h3><div class="chips" id="effects"></div></div>
@@ -244,7 +245,7 @@ const applyM=(m,x,y)=>[m[0]*x+m[2]*y+m[4],m[1]*x+m[3]*y+m[5]];
 const mscale=m=>Math.sqrt(Math.abs(m[0]*m[3]-m[1]*m[2]));
 
 // ---------- data ----------
-const ELEMENTS={Fire:{h:14,s:90,l:58},Water:{h:200,s:85,l:60},Wind:{h:150,s:60,l:62},Earth:{h:33,s:55,l:52},Lightning:{h:52,s:95,l:60},Light:{h:45,s:30,l:85},Shadow:{h:270,s:45,l:62},Void:{h:290,s:70,l:66}};
+const ELEMENTS={Fire:{h:14,s:90,l:58},Water:{h:200,s:85,l:60},Wind:{h:150,s:60,l:62},Earth:{h:33,s:55,l:52},Lightning:{h:52,s:95,l:60},Light:{h:45,s:30,l:85},Shadow:{h:270,s:45,l:62},Void:{h:290,s:70,l:66},Wood:{h:110,s:55,l:52},Metal:{h:210,s:12,l:82},Ether:{h:265,s:45,l:78}};
 const SECRET_ELEMENTS={Time:{h:180,s:30,l:70},Gravity:{h:240,s:60,l:66},Chaos:{h:330,s:90,l:62},Cosmos:{h:220,s:90,l:72}};
 const PURPOSES={Summoning:'Array',Warding:'Ward',Sealing:'Seal',Healing:'Bloom',Transmutation:'Circle',Divination:'Eye',Teleportation:'Gate',Cursing:'Hex'};
 const EFFECTS=['Barrier','Teleport','Heal','Seal','Summon','Curse','Bind','Reveal'];
@@ -252,15 +253,18 @@ const BUFFS=['+ATK','+DEF','Haste','Regen','Focus','Luck'];
 const DEBUFFS=['Slow','Poison','Silence','Weaken','Blind','Doom'];
 const STYLES={glow:'Glowing summon',linework:'Clean linework',grimoire:'Grimoire ink',neon:'Neon sigil',prismatic:'Prismatic'};
 const STYLE_GLOW={glow:5,linework:0,grimoire:0,neon:11,prismatic:7};
-const SCRIPTS={gibberish:'Invented gibberish',runic:'Runic',alchemical:'Alchemical',celestial:'Celestial'};
+const SCRIPTS={gibberish:'Invented gibberish',runic:'Runic',alchemical:'Alchemical',celestial:'Celestial',seal:'Seal script (Chinese)',devanagari:'Headline script (Sanskrit)',brush:'Talisman brush (Japanese)',hieroglyph:'Hieroglyphic (Egyptian)',vinca:'Vinča signs (Old European)'};
+// Traditions: each brings its own script style, a signature ring, a centre symbol, quotes and lessons.
+const TRADS={none:{name:'Any'},chinese:{name:'Chinese',script:'seal',ring:'bagua'},sanskrit:{name:'Sanskrit',script:'devanagari',ring:'lotus'},japanese:{name:'Japanese',script:'brush',ring:'shimenawa'},egyptian:{name:'Egyptian',script:'hieroglyph',ring:'cartouche'},oldeuro:{name:'Old European',script:'vinca',ring:'spirals'}};
+const TRAD_KEYS=Object.keys(TRADS);
 const SYL=['ka','zul','ren','ith','osh','va','thul','vel','mor','aeth','qua','syl','dra','nox','lum','ory','zha','kel','um','ra','xen'];
 const EFFECT_BIAS={Barrier:{double:3,ticks:2},Teleport:{orbits:4},Heal:{petals:4},Seal:{star:3,polygon:2},Summon:{glyph:3},Curse:{zigzag:4},Bind:{chain:4},Reveal:{rays:4}};
 const RING_DURS=[N72,N66,N42,N33,N21,N13,N11]; // seconds per turn, outer to inner
 const LAYER_Z=16; // 3D depth between rings
 
-let S={seed:'AZ7-KQ2-VEL',element:'Lightning',purpose:'Summoning',effects:['Summon','Seal'],buffs:['Haste'],debuffs:['Slow'],power:5,rings:7,sym:6,points:7,glow:5,fractal:0,style:'glow',script:'gibberish',hue:null,motion:'none'};
+let S={seed:'AZ7-KQ2-VEL',element:'Lightning',purpose:'Summoning',effects:['Summon','Seal'],buffs:['Haste'],debuffs:['Slow'],power:5,rings:7,sym:6,points:7,glow:5,fractal:0,style:'glow',script:'gibberish',hue:null,motion:'none',trad:'none'};
 const ui={animate:true,speed:1,powerMax:store.get('power13',false)?13:7,seedT:0};
-const fx={pal:null,gold:false,reverse:false,over9000:false};
+const fx={pal:null,gold:false,reverse:false,flip:false,energy:0};
 let lastBuild=null;
 
 // ---------- palette ----------
@@ -296,6 +300,26 @@ function glyphPath(r,script){ // drawn in a 10x14 box centred on 0,0
   }else if(script==='celestial'){
     d+=r()<.6?`M${f(-3+r()*2)} -6a5.5 6 0 1 0 0 12a4 4.5 0 1 1 0-12`:'M-4 3Q0 -9 4 3';
     if(r()<.7)d+='M2 -4l1 2l2 .5l-2 .5l-1 2l-1-2l-2-.5l2-.5z';if(r()<.5)d+=dot(-3+(r()*6|0),5);
+  }else if(script==='seal'){ // after Chinese seal script: boxy strokes, often mirror-symmetric
+    const sym=r()<.6,n=2+(r()*3|0);
+    for(let i=0;i<n;i++){if(r()<.5){const y=pick(r,[-6,-3,0,3,6]),x1=sym?-pick(r,[2,4]):pick(r,[-4,-2,0]),x2=sym?-x1:Math.min(4,x1+pick(r,[2,4,6]));d+=`M${x1} ${y}H${x2}`;}
+      else{const x=pick(r,[-4,-2,0,2,4]),y1=pick(r,[-6,-3,0]),y2=Math.min(6,y1+pick(r,[3,6,9]));d+=`M${x} ${y1}V${y2}`;if(sym&&x!==0)d+=`M${-x} ${y1}V${y2}`;}}
+    if(r()<.35)d+=`M-4 6Q-4 ${f(r()*4)} -1 ${f(2+r()*3)}`;
+  }else if(script==='devanagari'){ // after Devanagari: letters hang from a headline (shirorekha)
+    d+='M-5 -5H5';const st=pick(r,[3,1,-1]);if(r()<.75)d+=`M${st} -5V6`;
+    d+=pick(r,[`M${st} -1Q-4 -3 -4 1Q-4 5 0 4`,'M-4 -5Q-4 0 -1 0Q2 0 1 3Q0 6 -3 5','M-4 -5V2Q-4 5 -1 5','M-3 -5Q-5 -1 -2 0Q1 1 -1 4']);
+    if(r()<.3)d+=`M${st} -5Q${st+2} -8 ${st+3} -6`;
+  }else if(script==='brush'){ // after the brushed characters on Japanese ofuda talismans
+    d+=`M${f(-4+r()*2)} ${f(-4+r()*2)}H${f(2+r()*2)}`;
+    if(r()<.8)d+=`M${f(-1+r()*2)} -6V${f(3+r()*3)}`;
+    if(r()<.6)d+=`M0 ${f(r()*2)}L${f(-4+r())} 6`;if(r()<.6)d+=`M0 ${f(r()*2)}L${f(3+r())} 6`;
+    if(r()<.5)d+=`M${f(2+r()*2)} -6l1 1.5`;if(r()<.4)d+=`M-3 ${f(1+r()*2)}H3`;
+  }else if(script==='hieroglyph'){ // after Egyptian hieroglyphs: eye, ankh, water, reed, sun, bird, snake, house
+    d+=pick(r,['M-5 0Q0 -4 5 0Q0 3 -5 0M-1.2 -.5a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0','M-2.2 -3a2.2 3 0 1 0 4.4 0a2.2 3 0 1 0 -4.4 0M0 0V6M-3.5 1H3.5','M-5 1l1.7 -2 1.7 2 1.7 -2 1.7 2 1.7 -2 1.6 2',
+      'M0 6V-6M0 -6Q3 -4 1 -1','M-3.5 0a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0M-.8 0a.8 .8 0 1 0 1.6 0a.8 .8 0 1 0 -1.6 0','M-4 2Q-1 -5 3 -3L5 -4M-1 2V6M1 2V6M-4 2H3','M-5 4Q-2 -3 0 2T5 -2','M-4 -5H4V5H-4Z']);
+    if(r()<.3)d+=`M-4 ${r()<.5?-6:6}H4`;
+  }else if(script==='vinca'){ // after the Vinča signs of the Neolithic Balkans: chevrons, combs, crosses, meanders
+    const n=2+(r()*2|0);for(let i=0;i<n;i++)d+=pick(r,[`M-4 ${f(-2+r()*4)}L0 ${f(-6+r()*2)}L4 ${f(-2+r()*4)}`,'M-4 -4H4M-4 -4V0M0 -4V0M4 -4V0','M-3 -3L3 3M3 -3L-3 3','M-4 3V6H0V3H4V6','M0 -6V6',`M-4 ${f(2+r()*3)}L4 ${f(-2+r()*3)}`]);
   }else{ // invented gibberish: loopy, anime-circle energy
     d+=`M${f(-4+r()*3)} -6Q${f(r()*8-4)} 0 ${f(-3+r()*6)} 6`;
     if(r()<.8)d+=`M-4 ${f(-2+r()*4)}Q0 ${f(-6+r()*12)} 4 ${f(-2+r()*4)}`;
@@ -306,6 +330,7 @@ function glyphPath(r,script){ // drawn in a 10x14 box centred on 0,0
 const makeAlphabet=(r,script,size=N21)=>Array.from({length:size},()=>glyphPath(r,script));
 function polyD(n,rad,k,rot){const g=gcd(n,k);let d='';for(let s=0;s<g;s++){for(let t=0;t<=n/g;t++){const v=(s+t*k)%n;const[x,y]=P2(TOP+rot+v/n*2*Math.PI,rad);d+=(t?'L':'M')+x+' '+y;}d+='Z';}return d;}
 function starD(p,ro,ri){let d='';for(let i=0;i<p*2;i++){const[x,y]=P2(TOP+i/(p*2)*2*Math.PI,i%2?ri:ro);d+=(i?'L':'M')+x+' '+y;}return d+'Z';}
+function spiralD(rad,turns){let d='';const K=Math.round(turns*24);for(let i=0;i<=K;i++){const t=i/K,[x,y]=P2(t*turns*2*Math.PI,rad*t);d+=(i?'L':'M')+x+' '+y;}return d;}
 const circD=(x,y,r)=>`M${f2(x-r)} ${f2(y)}a${f2(r)} ${f2(r)} 0 1 0 ${f2(2*r)} 0a${f2(r)} ${f2(r)} 0 1 0 ${f2(-2*r)} 0Z`;
 const starK=p=>p>=5?Math.max(2,Math.floor((p-1)/2)):1;
 
@@ -325,6 +350,35 @@ function coreItems(st,R0,P,sw,rng,alpha){
   const bolt=s=>`M${f2(s*.15)} ${f2(-s*.8)}L${f2(-s*.35)} ${f2(s*.08)}H${f2(s*.05)}L${f2(-s*.15)} ${f2(s*.8)}L${f2(s*.4)} ${f2(-s*.12)}H0Z`;
   const arc=(rad,a1,a2)=>{const[x1,y1]=P2(a1,rad),[x2,y2]=P2(a2,rad);return `M${x1} ${y1}A${f2(rad)} ${f2(rad)} 0 ${a2-a1>Math.PI?1:0} 1 ${x2} ${y2}`;};
   const cres=s=>`M${f2(s*.2)} ${f2(-s*.75)}A${f2(s*.75)} ${f2(s*.75)} 0 1 0 ${f2(s*.2)} ${f2(s*.75)}A${f2(s*.55)} ${f2(s*.6)} 0 1 1 ${f2(s*.2)} ${f2(-s*.75)}Z`;
+  // a chosen tradition replaces the centre with its own symbol
+  if(st.trad&&st.trad!=='none'){
+    const q=R0;
+    switch(st.trad){
+      case 'chinese':{ // taijitu: yin and yang, each holding a seed of the other
+        c(q*.9);out.push({k:'p',d:`M0 ${f2(-q*.9)}A${f2(q*.9)} ${f2(q*.9)} 0 0 1 0 ${f2(q*.9)}A${f2(q*.45)} ${f2(q*.45)} 0 0 1 0 0A${f2(q*.45)} ${f2(q*.45)} 0 0 0 0 ${f2(-q*.9)}Z`,fill:col,w:W,col});
+        out.push({k:'c',r:q*.12,fill:P.bg,m:M.tr(0,q*.45)});dot(0,-q*.45,q*.12);break;}
+      case 'sanskrit':{ // yantra: interlocking triangles, bindu dot, and the gated square (bhupura)
+        const y=q*.66,tri2=(up,s,dy)=>'M'+[0,1,2].map(i=>{const[x,yy]=P2((up?TOP:-TOP)+i*2*Math.PI/3,s);return f2(x)+' '+f2(yy+dy);}).join('L')+'Z';
+        [[.92,.06],[.66,.1],[.44,.06],[.26,.02]].forEach(([s,dy])=>p(tri2(true,y*s,y*dy),undefined,W*.6));
+        [[.88,-.06],[.7,-.1],[.52,-.04],[.36,-.08],[.2,0]].forEach(([s,dy])=>p(tri2(false,y*s,y*dy),undefined,W*.6));
+        dot(0,0,q*.04);const s=q*.72,g=q*.16;
+        p(`M${f2(-s)} ${f2(-s)}H${f2(-g)}V${f2(-s-g*.6)}H${f2(g)}V${f2(-s)}H${f2(s)}V${f2(-g)}H${f2(s+g*.6)}V${f2(g)}H${f2(s)}V${f2(s)}H${f2(g)}V${f2(s+g*.6)}H${f2(-g)}V${f2(s)}H${f2(-s)}V${f2(g)}H${f2(-s-g*.6)}V${f2(-g)}H${f2(-s)}Z`,undefined,W*.7);break;}
+      case 'japanese':{ // the five-pointed star of Onmyodo, sometimes over the nine-line kuji grid
+        c(q*.92);p(polyD(5,q*.88,2,0));
+        if(rng()<.5){let d='';for(let i=0;i<5;i++){const y=-q*.5+i*q*.25;d+=`M${f2(-q*.5)} ${f2(y)}H${f2(q*.5)}`;}for(let i=0;i<4;i++){const x=-q*.375+i*q*.25;d+=`M${f2(x)} ${f2(-q*.55)}V${f2(q*.55)}`;}p(d,undefined,W*.4);}
+        break;}
+      case 'egyptian':{ // the Eye of Horus (wedjat) or the ankh
+        c(q*.95,undefined,W*.6);
+        if(rng()<.5){p(`M${f2(-q*.7)} ${f2(-q*.38)}Q0 ${f2(-q*.62)} ${f2(q*.72)} ${f2(-q*.32)}`);
+          p(`M${f2(-q*.62)} ${f2(-q*.02)}Q0 ${f2(-q*.4)} ${f2(q*.62)} ${f2(-q*.02)}Q0 ${f2(q*.22)} ${f2(-q*.62)} ${f2(-q*.02)}Z`);dot(0,-q*.06,q*.13);
+          p(`M${f2(-q*.08)} ${f2(q*.12)}L${f2(-q*.12)} ${f2(q*.66)}`);p(`M${f2(q*.12)} ${f2(q*.12)}Q${f2(q*.42)} ${f2(q*.45)} ${f2(q*.22)} ${f2(q*.68)}Q${f2(q*.02)} ${f2(q*.78)} ${f2(q*.06)} ${f2(q*.55)}`);}
+        else{e(q*.22,q*.3,M.tr(0,-q*.42));p(`M0 ${f2(-q*.12)}V${f2(q*.82)}M${f2(-q*.48)} ${f2(-q*.05)}H${f2(q*.48)}`);}
+        break;}
+      case 'oldeuro':{ // the triple spiral carved at Newgrange
+        for(let k=0;k<3;k++){const[x,y]=P2(TOP+k*2*Math.PI/3,q*.42);p(spiralD(q*.38,2.4),M.mul(M.tr(x,y),M.rot(k*120)));}c(q*.95,undefined,W*.6);break;}
+    }
+    return{items:out,spin:true};
+  }
   // frame around the sigil
   switch(frame){
     case 1:p(polyD(pts,R0,starK(pts),0),undefined,W*.8);break;
@@ -346,6 +400,9 @@ function coreItems(st,R0,P,sw,rng,alpha){
     case 'Time':if(v===0)p(`M${f2(-r*.45)} ${f2(-r*.7)}H${f2(r*.45)}L${f2(-r*.45)} ${f2(r*.7)}H${f2(r*.45)}Z`);else if(v===1){c(r*.78);let d='';for(let i=0;i<12;i++){const a=i/12*2*Math.PI,[x1,y1]=P2(a,r*.62),[x2,y2]=P2(a,r*.74);d+=`M${x1} ${y1}L${x2} ${y2}`;}p(d+`M0 0V${f2(-r*.5)}M0 0L${f2(r*.36)} ${f2(r*.12)}`);}else{let d='';for(let i=0;i<=48;i++){const t=i/48*2*Math.PI,q=1+Math.sin(t)**2;d+=(i?'L':'M')+f2(r*.9*Math.cos(t)/q)+' '+f2(r*.9*Math.sin(t)*Math.cos(t)/q);}p(d);}break;
     case 'Gravity':if(v===0){c(r*.7);c(r*.45);c(r*.2);p(`M0 ${f2(-r*.9)}V${f2(r*.9)}`);}else if(v===1){for(let i=0;i<4;i++)e(r*(.9-.2*i),r*(.32-.06*i),M.tr(0,i*r*.16-r*.2));}else{c(r*.25);e(r*.9,r*.35,M.rot(-N33));const[x,y]=applyM(M.rot(-N33),r*.9,0);dot(x,y,r*.08);}break;
     case 'Chaos':if(v===0){let d='';for(let i=0;i<8;i++){const a=i/8*2*Math.PI,[x,y]=P2(a,r*.85),[lx,ly]=P2(a-.18,r*.6),[rx,ry]=P2(a+.18,r*.6);d+=`M0 0L${x} ${y}M${lx} ${ly}L${x} ${y}L${rx} ${ry}`;}p(d);}else if(v===1){let d='';for(let i=0;i<pts;i++){const[x,y]=P2(TOP+i/pts*2*Math.PI,r*(.4+rng()*.6));d+=`M0 0L${x} ${y}`;}p(d);dot(0,0,r*.08);}else{for(let i=0;i<pts;i++){const a1=i/pts*2*Math.PI;p(arc(r*.75,a1,a1+2*Math.PI/pts*.6));}dot(0,0,r*.08);}break;
+    case 'Wood':p(`M0 ${f2(r*.85)}V${f2(-r*.7)}M0 ${f2(r*.15)}L${f2(-r*.5)} ${f2(-r*.3)}M0 ${f2(r*.15)}L${f2(r*.5)} ${f2(-r*.3)}M0 ${f2(-r*.2)}L${f2(-r*.28)} ${f2(-r*.58)}M0 ${f2(-r*.2)}L${f2(r*.28)} ${f2(-r*.58)}M0 ${f2(r*.85)}L${f2(-r*.3)} ${f2(r*.95)}M0 ${f2(r*.85)}L${f2(r*.3)} ${f2(r*.95)}`);break;
+    case 'Metal':c(r*.78);p(polyD(4,r*.42,1,Math.PI/4));break; // a round coin with a square hole
+    case 'Ether':e(r*.48,r*.7);dot(0,0,r*.08);if(v)c(r*.86,undefined,W*.5);break;
     case 'Cosmos':if(v===0){e(r*.85,r*.3,M.rot(-N21));p(starD(5,r*.4,r*.17));}else if(v===1){p(spiral(r*.85,1.5));p(spiral(r*.85,1.5),M.rot(180));dot(0,0,r*.08);}else{const q=Array.from({length:Math.max(N5,Math.min(pts,9))},()=>P2(rng()*2*Math.PI,r*(.2+rng()*.65)));p('M'+q.map(a=>a.join(' ')).join('L'),undefined,W*.6);q.forEach(([x,y])=>dot(x,y,r*.06));}break;
   }
   if(accent===1&&!['Light','Void','Cosmos','Chaos'].includes(el))dot(0,0,r*.07);
@@ -367,10 +424,13 @@ function build(st){
   const w0={glyph:2,ticks:2,dots:1.5,double:1.5,polygon:1.5,star:1.5,orbits:1,petals:1,zigzag:.7,chain:.7,rays:1};
   st.effects.forEach(e=>{const b=EFFECT_BIAS[e];if(b)for(const k in b)w0[k]+=b[k];});
   const layers=[];let prev='';
+  const trRing=TRADS[st.trad]&&TRADS[st.trad].ring,trIdx=Math.min(N-1,Math.max(1,Math.round(N/2)));
   for(let i=0;i<N;i++){
     const ro=edges[i],ri=edges[i+1],mid=(ro+ri)/2,th=ro-ri,col=i%2?P.acc:P.main;
     const bw=.55+r()*1.3,thin=Math.max(.7,sw*.55*bw); // per-band line weight: thickness variation
-    let t=i===0?'glyph':weighted(r,w0),guard=0;while(t===prev&&guard++<N7)t=weighted(r,w0);prev=t;
+    let t=i===0?'glyph':weighted(r,w0),guard=0;while(t===prev&&guard++<N7)t=weighted(r,w0);
+    if(trRing&&i===trIdx)t=trRing; // the tradition's signature ring sits in the middle
+    prev=t;
     // every band edge is a tapered ring: thick on one side, thin on the other
     const it=[{k:'t',r:ro,w:(i===0?sw*1.9:sw)*(.8+r()*1.3),col:P.main,ph:r()*Math.PI*2,amt:.35+r()*.6}];
     switch(t){
@@ -388,6 +448,27 @@ function build(st){
       case 'petals':{const m=n*2;let d='';for(let j=0;j<m;j++){const a=j/m*2*Math.PI,da=Math.PI/m*.9,[x1,y1]=P2(a-da,ri),[x2,y2]=P2(a+da,ri),[qx,qy]=P2(a,ro+th*.3);d+=`M${x1} ${y1}Q${qx} ${qy} ${x2} ${y2}`;}it.push({k:'p',d,w:thin,col},C(ri,thin,P.main));break;}
       case 'zigzag':{const m=2*n*pick(r,[N3,N5]);let d='';for(let j=0;j<m;j++){const[x,y]=P2(j/m*2*Math.PI,j%2?ri+th*.15:ro-th*.15);d+=(j?'L':'M')+x+' '+y;}it.push({k:'p',d:d+'Z',w:thin,col},C(ri,thin,P.main));break;}
       case 'chain':{const lw=th*.7,m=Math.max(N13,Math.floor(2*Math.PI*mid/(lw*.9)));for(let j=0;j<m;j++)it.push({k:'e',rx:lw*.55,ry:th*(j%2?.12:.2),w:thin,col,m:M.mul(M.rot(j/m*360),M.tr(0,-mid))});it.push(C(ri,thin,P.main));break;}
+      case 'bagua':{ // the eight trigrams of the I Ching, in the "early heaven" order
+        it.push(C(ri,thin,P.main));const L=Math.min(th*.9,2*Math.PI*mid/8*.55),sp=th*.2;
+        [7,6,5,4,3,2,1,0].forEach((b,j)=>{let d='';for(let l=0;l<3;l++){const y=(l-1)*sp;d+=(b>>(2-l))&1?`M${f2(-L/2)} ${f2(y)}H${f2(L/2)}`:`M${f2(-L/2)} ${f2(y)}H${f2(-L*.1)}M${f2(L*.1)} ${f2(y)}H${f2(L/2)}`;}
+          it.push({k:'p',d,w:Math.max(thin*1.6,th*.08),col,m:M.mul(M.rot(j/8*360),M.tr(0,-mid))});});break;}
+      case 'lotus':{ // lotus petals, as in a yantra or mandala
+        const m=Math.max(8,n*2);let d='',d2='';for(let j=0;j<m;j++){const a=j/m*2*Math.PI,da=Math.PI/m*.95,[x1,y1]=P2(a-da,ri),[x2,y2]=P2(a+da,ri),[tx,ty]=P2(a,ro-th*.05),[c1x,c1y]=P2(a-da*1.1,mid),[c2x,c2y]=P2(a+da*1.1,mid);
+          d+=`M${x1} ${y1}Q${c1x} ${c1y} ${tx} ${ty}Q${c2x} ${c2y} ${x2} ${y2}`;const[ix,iy]=P2(a,ri+th*.5);d2+=`M${P2(a,ri).join(' ')}L${ix} ${iy}`;}
+        it.push({k:'p',d,w:thin,col},{k:'p',d:d2,w:thin*.6,col:P.main},C(ri,thin,P.main));break;}
+      case 'shimenawa':{ // a twisted Shinto rope with zigzag paper streamers (shide)
+        const K=180,amp=th*.12,tw=pick(r,[N21,N33,N42]),rr=ro-th*.25;let d1='',d2='';for(let j=0;j<=K;j++){const a=j/K*2*Math.PI,o=Math.sin(a*tw)*amp,[x,y]=P2(a,rr+o),[x2,y2]=P2(a,rr-o);d1+=(j?'L':'M')+x+' '+y;d2+=(j?'L':'M')+x2+' '+y2;}
+        it.push({k:'p',d:d1,w:thin*1.4,col:P.main},{k:'p',d:d2,w:thin*1.4,col:P.main});
+        const s=th*.12;for(let j=0;j<n;j++)it.push({k:'p',d:`M0 0L${f2(s)} ${f2(s)}L${f2(-s*.6)} ${f2(2*s)}L${f2(s)} ${f2(3*s)}L${f2(-s*.6)} ${f2(4*s)}L${f2(s*.6)} ${f2(5*s)}`,w:thin,col,m:M.mul(M.rot(j/n*360),M.tr(0,-rr))});
+        it.push(C(ri,thin,P.main));break;}
+      case 'cartouche':{ // shen rings and cartouches, each holding glyphs
+        it.push(C(ri,thin,P.main));const cw=Math.min(th*.5,24),ch=th*.78,hw=cw/2,hh=ch/2,count=Math.max(n,Math.floor(2*Math.PI*mid/(cw*2.4))),s=Math.min(cw*.8/10,ch*.42/14);
+        for(let j=0;j<count;j++){const rm=M.mul(M.rot(j/count*360),M.tr(0,-mid));
+          it.push({k:'p',d:`M${f2(-hw)} ${f2(-hh+hw)}A${f2(hw)} ${f2(hw)} 0 0 1 ${f2(hw)} ${f2(-hh+hw)}V${f2(hh-hw)}A${f2(hw)} ${f2(hw)} 0 0 1 ${f2(-hw)} ${f2(hh-hw)}Z`,w:thin,col:P.main,m:rm},{k:'p',d:`M${f2(-hw)} ${f2(hh+thin*2)}H${f2(hw)}`,w:thin,col:P.main,m:rm});
+          [-.42,.42].forEach(o=>it.push({k:'p',d:pick(r,alpha),w:1.1,col,m:M.mul(rm,M.mul(M.tr(0,o*hh),M.sc(s)))}));}break;}
+      case 'spirals':{ // running spirals, as carved on Neolithic stones
+        it.push(C(ri,thin,P.main));const sr=th*.32,count=Math.max(n,Math.floor(2*Math.PI*mid/(sr*2.5))),sp=spiralD(sr,2.2);
+        for(let j=0;j<count;j++){const rm=M.mul(M.rot(j/count*360),M.tr(0,-mid));it.push({k:'p',d:sp,w:thin,col,m:j%2?M.mul(rm,[-1,0,0,1,0,0]):rm});}break;}
       case 'rays':{const m=n*pick(r,[N3,4,N5]);let d='';for(let j=0;j<m;j++){const a=j/m*2*Math.PI,[x1,y1]=P2(a,ri),[x2,y2]=P2(a,j%N3?ro-th*.3:ro);d+=`M${x1} ${y1}L${x2} ${y2}`;}it.push({k:'p',d,w:thin,col},C(ri,thin,P.main));break;}
     }
     layers.push({items:it,dir:dirs[i]*(fx.reverse?-1:1),dur:RING_DURS[i%N7],z:i*LAYER_Z});
@@ -425,7 +506,7 @@ function itemSVG(it){
   const t=it.m?` transform="matrix(${it.m.map(v=>+v.toFixed(4)).join(' ')})"`:'';
   switch(it.k){
     case 'c':return it.fill?`<circle r="${f2(it.r)}" fill="${it.fill}"${t}/>`:`<circle r="${f2(it.r)}" fill="${it.bg||'none'}" stroke="${it.col}" stroke-width="${f2(it.w)}"${t}/>`;
-    case 'p':return `<path d="${it.d}" fill="none" stroke="${it.col}" stroke-width="${f2(it.w)}" stroke-linecap="round" stroke-linejoin="round"${t}/>`;
+    case 'p':if(it.fill)return `<path d="${it.d}" fill="${it.fill}"${t}/>`;return `<path d="${it.d}" fill="none" stroke="${it.col}" stroke-width="${f2(it.w)}" stroke-linecap="round" stroke-linejoin="round"${t}/>`;
     case 'e':return `<ellipse rx="${f2(it.rx)}" ry="${f2(it.ry)}" fill="none" stroke="${it.col}" stroke-width="${f2(it.w)}"${t}/>`;
     case 't':{const ox=Math.cos(it.ph)*it.w*it.amt/2,oy=Math.sin(it.ph)*it.w*it.amt/2;return `<path d="${circD(0,0,it.r+it.w/2)}${circD(ox,oy,it.r-it.w/2)}" fill="${it.col}" fill-rule="evenodd"${t}/>`;}
   }
@@ -472,7 +553,7 @@ function item3D(accs,it){
     case 'c':if(it.fill)tube(acc,ring(it.r*.5,it.r*.5,10),Math.max(.4,it.r*.5*s),true);else{const N=Math.max(16,Math.min(160,Math.round(it.r*s/3.5)));tube(acc,ring(it.r,it.r,N),Math.max(.5,it.w*s/2),true);}break;
     case 'e':tube(acc,ring(it.rx,it.ry,40),Math.max(.5,it.w*s/2),true);break;
     case 't':{const N=Math.max(32,Math.min(200,Math.round(it.r*s/3)));tube(acc,ring(it.r,it.r,N),Array.from({length:N},(_,i)=>Math.max(.5,it.w*s/2*(1-it.amt*.8*Math.cos(i/N*2*Math.PI-it.ph)))),true);break;}
-    case 'p':pathPolys(it.d).forEach(pl=>tube(acc,pl.pts.map(q=>applyM(m,q[0],q[1])),Math.max(.45,it.w*s/2),pl.closed));break;
+    case 'p':pathPolys(it.d).forEach(pl=>tube(acc,pl.pts.map(q=>applyM(m,q[0],q[1])),Math.max(.45,(it.w||1.5)*s/2),pl.closed));break;
   }
 }
 const toColor=c=>new THREE.Color().setStyle(c);
@@ -522,7 +603,7 @@ function applyMotion(g,mo,p,k,i,t){
   g.position.z=z;g.scale.setScalar(s);g.rotation.x=rx;g.rotation.y=ry;
   d.mats.forEach(m=>{const u=m.userData.u;if(!u)return;u.uDissolve.value=dis;u.uEdgeW.value=ew;u.uScale.value=sc;
     if(EDGE[mo])u.uEdgeColor.value.setStyle(EDGE[mo]);else u.uEdgeColor.value.copy(m.userData.base).lerp(new THREE.Color(1,1,1),.4);
-    m.emissiveIntensity=m.userData.baseEI*(1+flare*2.2);});
+    m.emissiveIntensity=m.userData.baseEI*(1+flare*2.2+(fx.energy||0)*4);});
 }
 class Engine{
   constructor(canvas,{transparent=false,bloom=true}={}){
@@ -541,13 +622,14 @@ class Engine{
     const pl=new THREE.PointLight(toColor(B.P.acc),.9,0);pl.position.set(0,0,320);sc.add(pl);
     sc.background=this.transparent?null:toColor(B.P.bg);
     this.scene=sc;this.root=root;this.groups=groups;this.composer=null;
-    if(this.bloomOn&&!this.transparent&&S.glow>0){this.composer=new THREE.EffectComposer(this.r);this.composer.addPass(new THREE.RenderPass(sc,this.camera));this.composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(this.w,this.h),S.glow*.11,.45,.12));}
+    if(this.bloomOn&&!this.transparent&&S.glow>0){this.composer=new THREE.EffectComposer(this.r);this.composer.addPass(new THREE.RenderPass(sc,this.camera));this.bloom=new THREE.UnrealBloomPass(new THREE.Vector2(this.w,this.h),S.glow*.11,.45,.12);this.composer.addPass(this.bloom);}else this.bloom=null;
     this.resize(this.w,this.h);
   }
   resize(w,h){this.w=w;this.h=h;this.r.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(this.composer)this.composer.setSize(w,h);}
   frame(t){const mo=S.motion||'none',p=((t/MOTION_T)%1+1)%1,L=this.groups.length;
     this.groups.forEach((g,i)=>{const d=g.userData;g.rotation.z=d.dir?-Math.sign(d.dir)*Math.abs(d.dir)*2*Math.PI*t/d.dur:0;applyMotion(g,mo,p,L>1?i/(L-1):0,i,t);
-      if(d.phyllo)g.children.forEach((sg,j)=>{const q=phyllo(d.phyllo,j,t);sg.position.set(q.x,-q.y,0);sg.scale.setScalar(q.s);});});if(this.composer)this.composer.render();else this.r.render(this.scene,this.camera);}
+      if(d.phyllo)g.children.forEach((sg,j)=>{const q=phyllo(d.phyllo,j,t);sg.position.set(q.x,-q.y,0);sg.scale.setScalar(q.s);});});
+    const en=fx.energy||0;if(this.bloom)this.bloom.strength=S.glow*.11*(1+en*3);if(this.root)this.root.scale.setScalar(1+en*.06);if(this.composer)this.composer.render();else this.r.render(this.scene,this.camera);}
   disposeScene(){if(!this.scene)return;this.scene.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose();});this.scene=null;}
   dispose(){this.disposeScene();this.r.dispose();this.r.forceContextLoss();}
 }
@@ -573,7 +655,7 @@ const EGGS={
   memory:['Glyph Memory','Woke the core','The core is ticklish.'],
   memory7:['Long Memory','Remembered 7 glyphs','Seven in a row.'],
   limit:['Limit Break','Pushed power past seven','Seven is not a ceiling. Insist.'],
-  eleven:['One Louder','Symmetry 11','How far does symmetry go?'],
+  eleven:['Past Ten','Symmetry 11','How far does symmetry go?'],
   cursed:['Thirteen Rings','Used all 13 rings','Use every ring you are given.'],
   points13:['Thirteen Points','A 13-point star','Count the points. Then add more.'],
   supernova:['Supernova','Glow at 13','Turn the glow all the way up.'],
@@ -581,8 +663,8 @@ const EGGS={
   depth:['Full Cycle','Watched every 3D motion','Try every way a circle can move.'],
   gold:['Gilded Circle','Made 21 circles','Keep making circles.'],
   master:['Master Seal','3 buffs + 3 debuffs','Balance blessings and curses.'],
-  dontpanic:["Don't Panic",'Seed 42','The answer is a seed.'],
-  towel:['Towel Day','Held the circle for 42 seconds','Hold on. Longer. Much longer.'],
+  dontpanic:['The Answer','Seed 42','The answer is a seed.'],
+  towel:['Patience','Held the circle for 42 seconds','Hold on. Longer. Much longer.'],
   order66:['Reversal 66','6 effects, 6-fold symmetry','Six and six.'],
   sigil:['Named Sigil','Found one of the 72','Some seeds have names.'],
   konami:['Ring Arcade','Entered a classic code','↑ ↑ ↓ ↓ …'],
@@ -594,10 +676,12 @@ const EGGS={
   teleport:['Elsewhere','Got teleported','One in ten million. Or know the word.'],
   notfound:['404','Seed 404','Some seeds are missing.'],
   thx:['1138','Seed 1138','A very white, very calm number.'],
+  oxhour:['Hour of the Ox','Cast ushi no koku mairi between 1 and 3 a.m.','Some curses keep strict hours.'],
+  pilgrim:['Pilgrim','Visited every tradition','Visit every tradition.'],
 };
 let found=store.get('eggs',{});
 function egg(id,msg){const e=EGGS[id],first=!found[id];if(first){found[id]=Date.now();store.set('eggs',found);toast(`✦ Secret found: ${e?e[0]:id}${msg?' · '+msg:''}`);unlocks();}else if(msg&&!['depth'].includes(id))toast(msg);return first;}
-function unlocks(){const n=Object.keys(found).length;document.body.classList.toggle('unlocked',n>=N7||!!found.pc_sudo);document.body.classList.toggle('unlocked2',n>=N13||!!found.pc_moon_prism_power);}
+function unlocks(){const n=Object.keys(found).length;document.body.classList.toggle('unlocked',n>=N7||!!found.pc_sudo);document.body.classList.toggle('unlocked2',n>=N13||!!found.pc_iris);}
 
 // ---------- effects ----------
 const stage=()=>$('#stage');
@@ -615,48 +699,60 @@ function rain(color,ms=N7*1000){
     for(let i=0;i<cols;i++){ctx.save();ctx.translate(i*N21+10,ys[i]);ctx.scale(1.3,1.3);ctx.stroke(al[Math.random()*al.length|0]);ctx.restore();ys[i]+=N21;if(ys[i]>cv.height&&Math.random()>.95)ys[i]=0;}}
     if(t-t0<ms)requestAnimationFrame(f);else cv.remove();})(t0);
 }
-function towel(){const d=document.createElement('div');d.className='towel';stage().appendChild(d);setTimeout(()=>d.remove(),7100);egg('towel','Always know where your towel is.');}
+function towel(){const d=document.createElement('div');d.className='towel';stage().appendChild(d);setTimeout(()=>d.remove(),7100);egg('towel','A towel drifts by. Someone always forgets theirs.');}
 function unlockPower(){ui.powerMax=N13;store.set('power13',true);egg('limit');syncUI();}
 
 // ---------- words of power (pop culture nods) ----------
 const WORDS=[
-  ['xyzzy','Colossal Cave Adventure','Nothing happens.'],
-  ['hadouken','Street Fighter','Hadouken!',()=>projectile('#5ab8ff')],
-  ['kamehameha','Dragon Ball','Ka… me… ha… me… HA!',()=>{tmpClass(stage(),'charge',1300);setTimeout(()=>beam('#6fd3ff'),1100);}],
-  ['over 9000','Dragon Ball Z',"It's over 9000!",()=>{fx.over9000=true;syncUI();tmpClass(stage(),'shake',500);setTimeout(()=>{fx.over9000=false;syncUI();},N7*1000);}],
-  ['rasengan','Naruto','Spiraling sphere!',()=>tmpClass(stage(),'spinfast',3300)],
-  ['believe it','Naruto','Believe it!',()=>setPal(28,95,58)],
-  ['bankai','Bleach','Released.',()=>setPal(355,85,52,'#050203')],
-  ['domain expansion','Jujutsu Kaisen','Domain expanded.',()=>tmpClass(stage(),'domain',4200)],
-  ['plus ultra','My Hero Academia','Go beyond!',()=>{unlockPower();commit(()=>{S.power=N13;});}],
-  ['moon prism power','Sailor Moon','Prismatic style unlocked.',()=>{unlocks();commit(()=>{S.style='prismatic';S.glow=STYLE_GLOW.prismatic;});}],
-  ['equivalent exchange','Fullmetal Alchemist','Something given, something gained.',()=>commit(()=>{S.script='alchemical';S.purpose='Transmutation';})],
-  ['el psy kongroo','Steins;Gate','Worldline shifted.',()=>{tmpClass(stage(),'cursed',1300);setTimeout(()=>commit(()=>{S.seed=newSeed();}),650);}],
-  ['omae wa mou shindeiru','Fist of the North Star','NANI?!',()=>{tmpClass(stage(),'shake',500);setTimeout(()=>tmpClass(stage(),'shake',500),600);}],
-  ['isekai','Isekai anime','A truck honks somewhere in the distance…',()=>setTimeout(()=>teleport(),1300)],
-  ['lumos','Harry Potter','Light.',()=>tmpClass(stage(),'lumos',N7*1000)],
-  ['nox','Harry Potter','Darkness.',()=>tmpClass(stage(),'nox',N7*1000)],
-  ['wingardium leviosa','Harry Potter','Levitating.',()=>stage().classList.toggle('levitate')],
-  ['wingardium leviosar','Harry Potter',"It's levi-O-sa."],
-  ['expecto patronum','Harry Potter','A silver light answers.',()=>setPal(210,20,88)],
-  ['you shall not pass','The Lord of the Rings','The bridge holds.',()=>{commit(()=>{if(!S.effects.includes('Barrier'))S.effects.push('Barrier');});burst('#ffffff');tmpClass(stage(),'shake',500);}],
-  ['magic missile','Dungeons & Dragons','It always hits.',()=>projectile('#b48cff',N3)],
-  ['roll for initiative','Dungeons & Dragons',null,()=>{const d=1+(Math.random()*20|0);toast(d===20?'Natural 20! The circle blazes.':d===1?'Natural 1. The circle sneezes.':`You rolled a ${d}.`);if(d===20)burst('#ffd36b');}],
-  ['fus ro dah','Skyrim','FUS RO DAH!',()=>tmpClass(stage(),'push',1300)],
-  ['praise the sun','Dark Souls','\\[T]/',()=>setPal(45,92,62)],
-  ['do a barrel roll','Star Fox','Barrel roll!',()=>tmpClass(document.body,'roll',1300)],
-  ['the cake is a lie','Portal','The cake remains unconfirmed.'],
-  ['its dangerous to go alone','The Legend of Zelda','Take this: 🗡️'],
-  ['there is no spoon','The Matrix','There is no circle.',()=>{setPal(130,90,55,'#010501');rain('#3dff6e');}],
-  ['beam me up','Star Trek','Energizing…',()=>setTimeout(()=>teleport(),1300)],
-  ['hello there','Star Wars','General Kenobi.'],
-  ['reticulating splines','SimCity','Splines reticulated.'],
-  ['all your base','Zero Wing','Somebody set up us the circle.',()=>tmpClass(stage(),'cursed',3300)],
-  ['sudo','Unix','Permission granted. Secret elements unlocked.',()=>unlocks()],
-  ['abracadabra','Stage magic','Ta-da!',()=>randomize()],
+  // folk magic and old words
+  ['xyzzy','an old computer-game magic word','Nothing happens.'],
+  ['abracadabra','a Roman charm word, first written down in the 3rd century','Ta-da!',()=>randomize()],
+  ['hocus pocus','17th-century conjurers','Now you see it…',()=>{tmpClass(stage(),'cursed',1300);setTimeout(()=>commit(()=>{S.seed=newSeed();}),650);}],
   ['open sesame','One Thousand and One Nights','The circle opens.',()=>burst('#ffd36b')],
-  ['rickroll','The internet','Nice try.'],
-  ['konami','Konami','Up, up, down, down…'],
+  ['sudo','Unix','Permission granted. Secret elements unlocked.',()=>unlocks()],
+  ['roll for initiative','tabletop games',null,()=>{const d=1+(Math.random()*20|0);toast(d===20?'Natural 20! The circle blazes.':d===1?'Natural 1. The circle sneezes.':`You rolled a ${d}.`);if(d===20)burst('#ffd36b');}],
+  ['barrel roll','aerobatics','Barrel roll!',()=>tmpClass(document.body,'roll',1300)],
+  ['isekai','a Japanese story genre: “another world”','The world tilts…',()=>setTimeout(()=>teleport(),1300)],
+  // Latin and Greek
+  ['lux','Latin: light','Light.',()=>tmpClass(stage(),'lumos',N7*1000)],
+  ['tenebrae','Latin: darkness','Darkness.',()=>tmpClass(stage(),'nox',N7*1000)],
+  ['levitas','Latin: lightness','Levitating.',()=>stage().classList.toggle('levitate')],
+  ['luna','Latin: the Moon','A silver light answers.',()=>setPal(210,20,88)],
+  ['vortex','Latin: whirlpool','Spinning up.',()=>tmpClass(stage(),'spinfast',3300)],
+  ['excelsior','Latin: ever upward','Ever upward.',()=>{unlockPower();commit(()=>{S.power=N13;});}],
+  ['iris','the Greek goddess of the rainbow','Prismatic style unlocked.',()=>{unlocks();commit(()=>{S.style='prismatic';S.glow=STYLE_GLOW.prismatic;});}],
+  ['aegis','the shield of Zeus and Athena','The shield holds.',()=>{commit(()=>{if(!S.effects.includes('Barrier'))S.effects.push('Barrier');});burst('#ffffff');tmpClass(stage(),'shake',500);}],
+  ['solve et coagula','an alchemists’ motto: dissolve and combine','Dissolve and combine.',()=>commit(()=>{S.script='alchemical';S.purpose='Transmutation';})],
+  ['sator arepo tenet opera rotas','the Sator Square, scratched into a wall at Pompeii','The square reads the same every way. Now so do the rings.',()=>{fx.flip=!fx.flip;render();}],
+  ['begone','an old command','Begone!',()=>tmpClass(stage(),'push',1300)],
+  // Chinese
+  ['ji ji ru lu ling','a Daoist talisman command, 急急如律令','Quickly, quickly, as the law commands!',()=>{tmpClass(stage(),'charge',1300);setTimeout(()=>beam('#ffd36b'),1100);}],
+  ['taiji','Chinese: the supreme ultimate, yin and yang','Yin and yang.',()=>{fx.pal={ink:'#e9e9ea',bg:'#0a0a0b'};render();}],
+  ['wu xing','Chinese: the five phases','Wood feeds fire, fire makes earth, earth bears metal, metal carries water, water feeds wood.',()=>commit(()=>{S.points=N5;})],
+  // Sanskrit
+  ['agni','Sanskrit: fire, and the Vedic god of fire','Agni answers.',()=>projectile('#ff8a2a')],
+  ['svaha','Sanskrit, said as an offering is given to the fire','So be it.',()=>setMotion('burn')],
+  ['tat tvam asi','the Chandogya Upanishad','Thou art that.'],
+  ['shanti','Sanskrit: peace','Peace.',()=>{ui.speed=.5;render();}],
+  ['mandala','Sanskrit: circle','The circle widens.',()=>tmpClass(stage(),'domain',4200)],
+  // Japanese, including some odd curses
+  ['kotodama','Japanese: the spirit that lives in words','Words carry spirit. Choose yours carefully.',()=>tmpClass(stage(),'charge',1300)],
+  ['noroi','Japanese: curse','Cursed.',()=>{commit(()=>{if(!S.effects.includes('Curse'))S.effects.push('Curse');});setPal(355,85,52,'#050203');tmpClass(stage(),'shake',500);}],
+  ['tatari','Japanese: the vengeful curse of an offended spirit','The spirit is displeased.',()=>{tmpClass(stage(),'cursed',3300);setMotion('deteriorate');}],
+  ['ushi no koku mairi','a Japanese curse ritual performed at the hour of the ox',null,()=>{const h=new Date().getHours();toast(h>=1&&h<3?'It is the hour of the ox. Somewhere a straw doll is nailed to a sacred tree.':'Wrong hour. This curse only works between 1 and 3 a.m.');tmpClass(stage(),'cursed',2100);if(h>=1&&h<3)egg('oxhour');}],
+  ['rin pyo to sha kai jin retsu zai zen','kuji-in, the nine syllables','Nine seals.',()=>{commit(()=>{S.sym=9;});for(let i=0;i<9;i++)setTimeout(()=>burst(palette(S).acc),i*140);}],
+  ['seimei','Abe no Seimei, court diviner (921–1005)','The five-pointed star of Seimei.',()=>commit(()=>{S.points=N5;S.trad='japanese';S.script='brush';})],
+  // Egyptian
+  ['heka','Egyptian: magic itself, and its god','Heka flows.',()=>{tmpClass(stage(),'charge',1300);setTimeout(()=>beam('#ffd36b'),1100);}],
+  ['ankh','Egyptian: the sign of life','Life.',()=>{commit(()=>{if(!S.effects.includes('Heal'))S.effects.push('Heal');if(!S.buffs.includes('Regen'))S.buffs.push('Regen');});burst('#7dffb0');}],
+  ['maat','Egyptian: truth, balance and order','Balance.',()=>commit(()=>{S.buffs=BUFFS.slice(0,N3);S.debuffs=DEBUFFS.slice(0,N3);})],
+  ['wedjat','Egyptian: the Eye of Horus','The eye opens.',()=>tmpClass(stage(),'lumos',N7*1000)],
+  ['amun ra','the Egyptian sun god','The sun rises.',()=>setPal(45,92,62)],
+  // Old European
+  ['dyeus','the Proto-Indo-European sky father, ancestor of Zeus and Jupiter','The sky answers.',()=>{commit(()=>{S.element='Lightning';fx.pal=null;});setTimeout(()=>beam('#9fd8ff'),300);}],
+  ['alu','a charm word carved on Iron Age amulets and runestones','ALU: carved on amulets and runestones. Nobody is sure what it means.',()=>commit(()=>{S.script='runic';})],
+  ['galdr','Old Norse: a spoken spell','The runes fall.',()=>{setPal(40,80,55,'#050402');rain('#ffcf6b');}],
+  ['avis akvasas ka','Schleicher’s Fable (1868), in reconstructed Proto-Indo-European','“The Sheep and the Horses”: a story told in a language no one has spoken for about 5,000 years.'],
   // philosophy
   ['know thyself','Temple of Apollo at Delphi','Inscribed at Delphi: γνῶθι σεαυτόν.'],
   ['cogito ergo sum','René Descartes','You think, so you are. So is the circle.'],
@@ -665,7 +761,7 @@ const WORDS=[
   ['amor fati','Friedrich Nietzsche','Love your fate.',()=>randomize()],
   ['tabula rasa','John Locke','A blank slate.',()=>commit(()=>{S.effects=[];S.buffs=[];S.debuffs=[];})],
 ].map(([k,src,msg,fn])=>({k,id:'pc_'+k.replace(/\W+/g,'_'),src,msg,fn}));
-WORDS.forEach(w=>{EGGS[w.id]=[`“${w.k}”`,w.src,'A word of power from somewhere familiar.'];});
+WORDS.forEach(w=>{EGGS[w.id]=[`“${w.k}”`,w.src,'A word of power from an old tradition.'];});
 
 function speak(raw){
   const k=norm(raw);if(!k)return;
@@ -692,6 +788,23 @@ const QUOTES={
   Gravity:[['If I have seen further, it is by standing on the shoulders of giants.','Isaac Newton, letter to Robert Hooke, 1675']],
   Chaos:[['One must still have chaos in oneself to be able to give birth to a dancing star.','Friedrich Nietzsche, Thus Spoke Zarathustra']],
   Cosmos:[['Constantly regard the universe as one living being, having one substance and one soul.','Marcus Aurelius, Meditations IV.40']],
+  Wood:[['Trees and plants, in their early growth, are soft and brittle; at their death, dry and withered.','Laozi, Tao Te Ching 76']],
+  Metal:[['The mechanic, who wishes to do his work well, must first sharpen his tools.','Confucius, Analects 15.10']],
+  Ether:[['Truth is one; the wise call it by many names.','Rig Veda 1.164.46']],
+};
+const TRAD_QUOTES={
+  chinese:[['The Tao that can be trodden is not the enduring and unchanging Tao.','Laozi, Tao Te Ching 1'],['I do not know whether I was then a man dreaming I was a butterfly, or whether I am now a butterfly, dreaming I am a man.','Zhuangzi, chapter 2']],
+  sanskrit:[['Truth is one; the wise call it by many names.','Rig Veda 1.164.46'],['Thou art that.','Chandogya Upanishad 6.8.7'],['You have a right to your actions, but never to their fruits.','Bhagavad Gita 2.47']],
+  japanese:[['The flowing river never stops, and yet the water never stays the same.','Kamo no Chōmei, Hōjōki, 1212'],['If man were never to fade away… how things would lose their power to move us!','Yoshida Kenkō, Essays in Idleness, about 1330']],
+  egyptian:[['No one is born wise.','after the Maxims of Ptahhotep, about 2400 BCE'],['I have not caused pain. I have made no one weep.','the Book of the Dead, spell 125']],
+  oldeuro:[['A sheep that had no wool saw horses: one pulling a heavy wagon, one carrying a big load, and one carrying a man quickly.','Schleicher’s Fable, 1868, from reconstructed Proto-Indo-European'],['In the circumference of a circle the beginning and end are common.','Heraclitus, fragment 103']],
+};
+const TRAD_LESSON={
+  chinese:['The ring of three-line symbols is the bagua: the eight trigrams of the I Ching, the Book of Changes. Each line is solid (yang) or broken (yin), so there are 2 × 2 × 2 = 8 trigrams.','Daoist talismans, called fu, are written in a stylized seal script and often end with jí jí rú lǜ lìng: “Quickly, quickly, as the law commands!”','The taijitu shows yin and yang as two halves, each holding a seed of the other.'],
+  sanskrit:['The centre is a yantra, a diagram for meditation. Upward triangles stand for Shiva, downward ones for Shakti, and the bindu dot for the source of everything.','The square with a gate on each side is the bhupura, the “earth enclosure” that frames a yantra like the walls around a temple.','Sanskrit is usually written in Devanagari, whose letters hang from a line across the top called the shirorekha.'],
+  japanese:['Onmyōdō, Japan’s “way of yin and yang,” used the five-pointed star as a protective charm. The court diviner Abe no Seimei (921–1005) made it his crest.','The rope with zigzag paper is a shimenawa with shide. Shinto uses them to mark sacred places, from shrine gates to ancient trees.','Ushi no koku mairi was a curse ritual: at the hour of the ox (1 to 3 a.m.) the curser, dressed in white, nailed a straw doll to a sacred tree. Some shrine trees are said to still bear the nail holes.'],
+  egyptian:['The shen ring, a loop of rope with no end, meant eternity. Stretched long, it became the cartouche, the oval that circles a pharaoh’s name.','Heka was both the Egyptian word for magic and the god who embodied it. Egyptians saw magic as a force built into creation itself.','The Eye of Horus, the wedjat, was a protective amulet. In myth the eye was torn out in a fight with Seth and healed by Thoth.'],
+  oldeuro:['The Vinča signs were scratched on pottery and figurines in the Balkans around 5000 BCE. Nobody knows if they are writing; they have never been deciphered.','Newgrange in Ireland, built around 3200 BCE, is older than Stonehenge and the Giza pyramids. Its passage fills with light at sunrise on the winter solstice, and triple spirals are carved inside.','Proto-Indo-European, spoken perhaps 6,000 years ago, is the reconstructed ancestor of languages from Hindi to English. Its sky god, *Dyḗus ph₂tḗr, became Zeus Pater and Jupiter.'],
 };
 const GEO_QUOTES=[
   ['In the circumference of a circle the beginning and end are common.','Heraclitus, fragment 103'],
@@ -719,12 +832,20 @@ const ELEMENT_LESSON={
   Gravity:'Newton showed that one force both pulls an apple to the ground and keeps the Moon circling Earth.',
   Chaos:'In Hesiod’s Theogony (about 700 BCE), Chaos, a yawning gap, is the very first thing to exist.',
   Cosmos:'Kosmos means both “order” and “ornament” in Greek. Tradition says Pythagoras was the first to use it for the universe.',
+  Wood:'In the Chinese Wu Xing, wood is one of five phases rather than elements: wood feeds fire, fire makes earth, earth bears metal, metal carries water, water feeds wood.',
+  Metal:'Chinese coins were round with a square hole for over 2,000 years, a shape often read as heaven (round) around earth (square).',
+  Ether:'Indian philosophy counts five great elements, the pancha mahabhuta: earth, water, fire, air and akasha, the ether or space that holds all the rest.',
 };
 const SCRIPT_LESSON={
   runic:'The runes are invented, but styled on the Elder Futhark, a 24-letter alphabet used from about 150 to 800 CE and built from straight strokes that are easy to carve in wood.',
   alchemical:'Alchemists wrote substances as symbols: a circle with a dot meant gold and the Sun, a crescent meant silver and the Moon.',
   celestial:'The celestial glyphs echo planetary symbols, like the Moon’s crescent, that astronomers and astrologers have used since antiquity.',
   gibberish:'The invented script is asemic writing: marks that look like text but carry no words. Xu Bing’s Book from the Sky (1988) filled a whole room with made-up characters.',
+  seal:'The glyphs imitate Chinese seal script, the formal style standardized under the first emperor around 221 BCE and still carved on name seals today.',
+  devanagari:'The glyphs imitate Devanagari, the script most often used for Sanskrit, where letters hang from a headline called the shirorekha.',
+  brush:'The glyphs imitate the brushed characters on Japanese ofuda, paper talismans hung in homes and shrines for protection.',
+  hieroglyph:'The glyphs borrow Egyptian hieroglyph shapes: the eye, the ankh, water ripples, a reed and a sun disk. Real hieroglyphs mix signs for sounds with signs for ideas.',
+  vinca:'The glyphs imitate the Vinča signs of the Neolithic Balkans, about 5000 BCE: chevrons, combs and crosses that may or may not be the first writing in Europe.',
 };
 const MOTION_LESSON={
   rise:'Rising, nested rings recall the medieval picture of the heavens as crystal spheres inside one another, each turning at its own pace.',
@@ -743,6 +864,7 @@ function lessons(st){
   else if(p===6)out.push('The star is a hexagram, written {6/2}. Because 6 and 2 share a factor, it is really two overlapping triangles: the shape known as the Seal of Solomon and the Star of David.');
   else{const g=gcd(p,k);out.push(`The star is a ${STAR_NAMES[p]}, written {${p}/${k}}: put ${p} points on a circle and join every ${ORD(k)} one.${g>1?` Because ${p} and ${k} share a factor, it splits into ${g} separate shapes.`:' This notation is called a Schläfli symbol.'}`);}
   out.push(ELEMENT_LESSON[st.element]||'');
+  if(st.trad&&TRAD_LESSON[st.trad])out.unshift(pick(rngFrom('trad|'+st.seed),TRAD_LESSON[st.trad]));
   if(st.fractal>0)out.push(`The small circles grow like seeds in a sunflower: each is placed 137.5° from the last (the golden angle, 360° ÷ φ²) and drifts outward, so they never line up. Sunflower spirals come in Fibonacci numbers, like the ${[0,13,21,34][st.fractal]} seeds here. Each seed is also a smaller copy of the circle, which is what makes it fractal.`);
   else if(st.motion&&st.motion!=='none')out.push(MOTION_LESSON[st.motion]);
   else{const r=rngFrom('lesson|'+st.seed);out.push(pick(r,[
@@ -750,11 +872,12 @@ function lessons(st){
     SCRIPT_LESSON[st.script],
     'A full turn is 360 degrees probably because Babylonian astronomers counted in base 60, and 360 is close to the number of days in a year.',
   ]));}
-  return out.filter(Boolean);
+  return out.filter(Boolean).slice(0,N3);
 }
 function updateLore(){
   const r=rngFrom('quote|'+S.seed+'|'+S.element),own=QUOTES[S.element]||[];
-  const [q,by]=r()<.55&&own.length?pick(r,own):pick(r,GEO_QUOTES);
+  const tq=TRAD_QUOTES[S.trad],x=r();
+  const [q,by]=tq&&x<.6?pick(r,tq):x<.75&&own.length?pick(r,own):own.length&&!tq&&x<.55?pick(r,own):pick(r,GEO_QUOTES);
   $('#quote').textContent=q;$('#quoteBy').textContent='— '+by;
   $('#facts').innerHTML=lessons(S).map(t=>`<li>${esc(t)}</li>`).join('');
 }
@@ -768,7 +891,7 @@ let seedEls=[],seedLast=performance.now();
   if(!v3.on&&seedEls.length&&lastBuild){const L=lastBuild.layers.find(l=>l.phyllo);if(L)seedEls.forEach((g,i)=>{const q=phyllo(L.phyllo,i,ui.seedT);g.setAttribute('transform',`translate(${q.x.toFixed(1)} ${q.y.toFixed(1)}) scale(${q.s.toFixed(3)})`);});}
   requestAnimationFrame(seedLoop);})(performance.now());
 function render(){
-  fx.reverse=S.effects.length===6&&S.sym===6;
+  fx.reverse=(S.effects.length===6&&S.sym===6)!==!!fx.flip;
   lastBuild=build(S);const P=lastBuild.P;
   svg.innerHTML=toSVG(lastBuild,S);
   svg.classList.toggle('paused',!ui.animate);
@@ -778,23 +901,23 @@ function render(){
   $('#spellName').textContent=name;$('#spellSub').textContent=[S.element,S.purpose,...S.effects].join(' · ');
   seedEls=[...svg.querySelectorAll('.seed')];
   syncUI();scriptPreview();saveHash();refresh3D();updateLore();
-  if(S.sym===N11)egg('eleven','This one goes to eleven.');
+  if(S.sym===N11)egg('eleven','Turned up past ten.');
   if(S.rings>=N13)egg('cursed','Thirteen rings. Something is wrong.');
   if(S.points>=N13)egg('points13','A thirteen-point star.');
   if(S.glow>=N13)egg('supernova','Supernova.');
   if(S.fractal>=3)egg('fractal3',"It's circles all the way down.");
   if(isMaster(S))egg('master','Three blessings, three curses.');
-  if(fx.reverse)egg('order66','Every ring turns against you.');
+  if(S.effects.length===6&&S.sym===6)egg('order66','Every ring turns against you.');
   if(sig){const sg=store.get('sigils',{});if(!sg[sig.idx]){sg[sig.idx]=sig.name;store.set('sigils',sg);if(!egg('sigil',`Sigil ${sig.idx} of 72: ${sig.name}`))toast(`Named Sigil ${sig.idx} of 72 discovered: ${sig.name}`);}}
 }
 function chip(label,g,v,cls=''){return `<button class="chip ${cls}" data-g="${g}" data-v="${v}">${label}</button>`;}
 function syncUI(){
-  document.querySelectorAll('.chip[data-g]').forEach(c=>{const g=c.dataset.g,v=c.dataset.v;c.classList.toggle('on',g==='element'||g==='motion'?S[g]===v:S[g].includes(v));});
+  document.querySelectorAll('.chip[data-g]').forEach(c=>{const g=c.dataset.g,v=c.dataset.v;c.classList.toggle('on',g==='element'||g==='motion'||g==='trad'?S[g]===v:S[g].includes(v));});
   $('#purpose').value=S.purpose;$('#script').value=S.script;
   if(document.activeElement!==$('#seed'))$('#seed').value=S.seed;
   const pw=$('#power');pw.max=ui.powerMax;pw.value=S.power;$('#powerVal').textContent=fx.over9000?`9001 / ${ui.powerMax}`:`${S.power} / ${ui.powerMax}`;
   $('#rings').value=S.rings;$('#ringsVal').textContent=S.rings>=N13?'13 · cursed':S.rings;
-  $('#sym').value=S.sym;$('#symVal').textContent=S.sym===N11?'11-fold · one louder':S.sym+'-fold';
+  $('#sym').value=S.sym;$('#symVal').textContent=S.sym===N11?'11-fold · past ten':S.sym+'-fold';
   $('#points').value=S.points;$('#pointsVal').textContent=S.points+' points';
   $('#glow').value=S.glow;$('#glowVal').textContent=S.glow===0?'Off':S.glow>=N13?'13 · supernova':S.glow;
   $('#fractal').value=S.fractal;$('#fractalVal').textContent=['Off','13 seeds','21 seeds','34 seeds'][S.fractal];
@@ -809,17 +932,18 @@ const hist=[];
 function pushHist(){hist.push(JSON.stringify(S));if(hist.length>N42)hist.shift();}
 function commit(fn){pushHist();fn();render();}
 // Circle codes: the seed plus 18 base-36 characters, so a whole circle fits in a plain #name link.
-const EL_ALL=Object.keys(ELEMENTS).concat(Object.keys(SECRET_ELEMENTS)),PU=Object.keys(PURPOSES),STL=Object.keys(STYLES),SCR=Object.keys(SCRIPTS);
+const EL_ALL=['Fire','Water','Wind','Earth','Lightning','Light','Shadow','Void','Time','Gravity','Chaos','Cosmos','Wood','Metal','Ether'],PU=Object.keys(PURPOSES),STL=Object.keys(STYLES),SCR=Object.keys(SCRIPTS);
 const b36=(n,w)=>Math.max(0,n).toString(36).padStart(w,'0');
 const mask=(arr,all)=>all.reduce((m,x,i)=>arr.includes(x)?m|1<<i:m,0);
 const unmask=(m,all)=>all.filter((_,i)=>m>>i&1);
 const cleanSeed=s=>String(s).toUpperCase().replace(/[^A-Z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,21);
-function encode(st){return (cleanSeed(st.seed)||'X')+'-'+b36(EL_ALL.indexOf(st.element),1)+b36(PU.indexOf(st.purpose),1)+b36(mask(st.effects,EFFECTS),2)+b36(mask(st.buffs,BUFFS),2)+b36(mask(st.debuffs,DEBUFFS),2)+b36(st.power,1)+b36(st.rings,1)+b36(st.sym,1)+b36(STL.indexOf(st.style),1)+b36(SCR.indexOf(st.script),1)+(st.hue==null?'zz':b36(st.hue,2))+b36(st.points,1)+b36(st.glow,1)+b36(st.fractal,1)+b36(Math.max(0,MOTION_KEYS.indexOf(st.motion)),1);}
+function encode(st){return (cleanSeed(st.seed)||'X')+'-'+b36(EL_ALL.indexOf(st.element),1)+b36(PU.indexOf(st.purpose),1)+b36(mask(st.effects,EFFECTS),2)+b36(mask(st.buffs,BUFFS),2)+b36(mask(st.debuffs,DEBUFFS),2)+b36(st.power,1)+b36(st.rings,1)+b36(st.sym,1)+b36(STL.indexOf(st.style),1)+b36(SCR.indexOf(st.script),1)+(st.hue==null?'zz':b36(st.hue,2))+b36(st.points,1)+b36(st.glow,1)+b36(st.fractal,1)+b36(Math.max(0,MOTION_KEYS.indexOf(st.motion)),1)+b36(Math.max(0,TRAD_KEYS.indexOf(st.trad)),1);}
 function decode(code){
-  const s=String(code).trim(),m=s.match(/^(.+)-([0-9a-zA-Z]{19})$/)||s.match(/^(.+)-([0-9a-zA-Z]{18})$/)||s.match(/^(.+)-([0-9a-zA-Z]{15})$/);if(!m)return null;
+  const s=String(code).trim(),m=s.match(/^(.+)-([0-9a-zA-Z]{20})$/)||s.match(/^(.+)-([0-9a-zA-Z]{19})$/)||s.match(/^(.+)-([0-9a-zA-Z]{18})$/)||s.match(/^(.+)-([0-9a-zA-Z]{15})$/);if(!m)return null;
   const p=m[2].toLowerCase(),n=(a,b)=>parseInt(p.slice(a,b),36),o={seed:m[1],element:EL_ALL[n(0,1)],purpose:PU[n(1,2)],effects:unmask(n(2,4),EFFECTS),buffs:unmask(n(4,6),BUFFS),debuffs:unmask(n(6,8),DEBUFFS),power:n(8,9),rings:n(9,10),sym:n(10,11),style:STL[n(11,12)],script:SCR[n(12,13)],hue:p.slice(13,15)==='zz'?null:n(13,15)};
   if(p.length>=18){o.points=n(15,16);o.glow=n(16,17);o.fractal=n(17,18);}
-  if(p.length===19)o.motion=MOTION_KEYS[n(18,19)];
+  if(p.length>=19)o.motion=MOTION_KEYS[n(18,19)];
+  if(p.length===20)o.trad=TRAD_KEYS[n(19,20)];
   return sanitize(o);
 }
 let hT;function saveHash(){clearTimeout(hT);hT=setTimeout(()=>{try{location.replace('#'+encode(S));}catch(e){}},400);}
@@ -832,7 +956,7 @@ function sanitize(o){
   t.power=cl(o.power,1,N13,t.power);t.rings=cl(o.rings,N3,N13,t.rings);t.sym=cl(o.sym,N3,N11,t.sym);
   t.points=cl(o.points,N3,N13,t.points);t.glow=cl(o.glow,0,N13,t.glow);t.fractal=cl(o.fractal,0,3,t.fractal);
   if(STYLES[o.style])t.style=o.style;if(SCRIPTS[o.script])t.script=o.script;t.hue=o.hue==null?null:cl(o.hue,0,359,null);
-  t.motion=MOTIONS[o.motion]?o.motion:'none';
+  t.motion=MOTIONS[o.motion]?o.motion:'none';t.trad=TRADS[o.trad]?o.trad:'none';
   return t;
 }
 function loadHash(){const h=location.hash.slice(1);if(h==='elsewhere'){setTimeout(()=>teleport(),700);return;}const s=decode(h);if(s){S=s;if(S.power>N7)ui.powerMax=N13;}}
@@ -850,11 +974,50 @@ function randomize(){
 }
 function maybeElsewhere(){if(Math.random()*ELSEWHERE_ODDS<1)setTimeout(()=>teleport(),1300);}
 
+// ---------- summon: energy gathers into the core, then bursts out of the circle ----------
+function summonFX(){
+  const st=stage(),wrap=$('#wrap'),P=palette({...S,style:S.style==='grimoire'?'glow':S.style});
+  const W=st.clientWidth,H=st.clientHeight,dpr=Math.min(2,window.devicePixelRatio||1),cv=document.createElement('canvas');
+  cv.width=W*dpr;cv.height=H*dpr;Object.assign(cv.style,{position:'absolute',left:'0',top:st.scrollTop+'px',width:W+'px',height:H+'px',pointerEvents:'none',zIndex:'3'});st.appendChild(cv);
+  const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);
+  const wr=wrap.getBoundingClientRect(),sr=st.getBoundingClientRect(),R=wr.width/2;let cx=wr.left-sr.left+wr.width/2,cy=wr.top-sr.top+wr.height/2;
+  if(v3.on&&v3.eng&&lastBuild){const v=new THREE.Vector3(0,0,lastBuild.layers[lastBuild.layers.length-1].z).project(v3.eng.camera);cx=wr.left-sr.left+(v.x+1)/2*wr.width;cy=wr.top-sr.top+(1-(v.y+1)/2)*wr.height;} // burst from the raised core
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches,cols=[P.main,P.acc,'#ffffff'],rand=Math.random;
+  const motes=Array.from({length:reduce?0:150},()=>({a:rand()*6.283,d:R*(1+rand()*.7),s:.6+rand()*1.9,c:pick(rand,cols),delay:rand()*.35}));
+  const sparks=[],glyphs=[],al=makeAlphabet(rngFrom('fx|'+S.seed),S.script,N13).map(d=>new Path2D(d));
+  const T_BURST=.95,T_END=3.3,t0=performance.now();let last=t0,burst=false;
+  const flat=v3.on?.55:1; // shockwaves lie flat on the tilted 3D circle
+  function doBurst(){burst=true;tmpClass(st,'shake',500);
+    if(reduce)return;
+    for(let i=0;i<320;i++){const a=rand()*6.283,v=R*(1.2+rand()*2.8);sparks.push({x:cx,y:cy,vx:Math.cos(a)*v,vy:Math.sin(a)*v*flat,life:1,c:pick(rand,cols),w:1+rand()*2.2});}
+    for(let i=0;i<N21;i++){const a=rand()*6.283;glyphs.push({x:cx+Math.cos(a)*R*.3,y:cy+Math.sin(a)*R*.3*flat,vx:Math.cos(a)*R*.25,vy:-R*(.35+rand()*.5),rot:rand()*6,vr:(rand()-.5)*2,g:al[i%al.length],life:1,s:1.6+rand()*1.6});}}
+  (function frame(now){
+    const t=(now-t0)/1000,dt=Math.min(.05,(now-last)/1000);last=now;ctx.clearRect(0,0,W,H);ctx.globalCompositeOperation='lighter';
+    if(t<T_BURST){const k=t/T_BURST;fx.energy=k*.6;
+      motes.forEach(m=>{const u=Math.min(1,Math.max(0,(k-m.delay)/(1-m.delay)));if(u<=0)return;const e=u*u*u,d=m.d*(1-e);ctx.globalAlpha=.85*u;ctx.fillStyle=m.c;ctx.beginPath();ctx.arc(cx+Math.cos(m.a+e*2)*d,cy+Math.sin(m.a+e*2)*d*flat,m.s*(1+e),0,6.283);ctx.fill();});
+      const cr=R*(.08+.22*k*k),g=ctx.createRadialGradient(cx,cy,0,cx,cy,cr*2.4);g.addColorStop(0,`rgba(255,255,255,${.5+.5*k})`);g.addColorStop(.35,P.acc);g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.globalAlpha=.9;ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,cr*2.4,0,6.283);ctx.fill();
+    }else{
+      if(!burst)doBurst();const b=t-T_BURST,fade=Math.max(0,1-b/(T_END-T_BURST));fx.energy=Math.max(0,1-b/1.6);
+      if(b<.35){ctx.globalAlpha=(1-b/.35)*.75;ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);} // flash
+      const pw=R*.5*Math.max(0,1-b/1.5)*(1+.15*Math.sin(b*40)); // pillar of light
+      if(pw>0&&!reduce){let g=ctx.createLinearGradient(cx-pw,0,cx+pw,0);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(.5,'rgba(255,255,255,.95)');g.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=Math.min(1,fade*1.4);ctx.fillStyle=g;ctx.fillRect(cx-pw,0,pw*2,cy+R*.12);
+        g=ctx.createLinearGradient(cx-pw*1.8,0,cx+pw*1.8,0);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(.5,P.acc);g.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=.5*fade;ctx.fillStyle=g;ctx.fillRect(cx-pw*1.8,0,pw*3.6,cy+R*.12);}
+      for(let i=0;i<3;i++){const sb=b-i*.16;if(sb<0||sb>1.3)continue;const rr=R*(.15+sb*1.25),a=1-sb/1.3;ctx.globalAlpha=a;ctx.strokeStyle=i===1?P.acc:'#ffffff';ctx.lineWidth=(i===0?10:5)*a+1;ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*flat,0,0,6.283);ctx.stroke();} // shockwaves
+      const cr=R*.3*Math.max(0,1-b/1.2);if(cr>0){const g=ctx.createRadialGradient(cx,cy,0,cx,cy,cr*3);g.addColorStop(0,'#ffffff');g.addColorStop(.3,P.main);g.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=1;ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,cr*3,0,6.283);ctx.fill();}
+      sparks.forEach(s=>{if(s.life<=0)return;s.vx*=1-1.6*dt;s.vy=s.vy*(1-1.6*dt)+R*.25*dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=dt*.55;ctx.globalAlpha=Math.max(0,s.life);ctx.strokeStyle=s.c;ctx.lineWidth=s.w;ctx.beginPath();ctx.moveTo(s.x-s.vx*.035,s.y-s.vy*.035);ctx.lineTo(s.x,s.y);ctx.stroke();});
+      glyphs.forEach(g=>{if(g.life<=0)return;g.x+=g.vx*dt;g.y+=g.vy*dt;g.rot+=g.vr*dt;g.life-=dt*.42;ctx.save();ctx.globalAlpha=Math.max(0,g.life);ctx.translate(g.x,g.y);ctx.rotate(g.rot);ctx.scale(g.s,g.s);ctx.strokeStyle=P.main;ctx.lineWidth=1.4/g.s;ctx.lineCap='round';ctx.stroke(g.g);ctx.restore();});
+    }
+    ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
+    if(!v3.on)svg.style.filter=fx.energy>0?`brightness(${(1+fx.energy*1.6).toFixed(2)}) saturate(${(1+fx.energy*.5).toFixed(2)})`:'';
+    if(t<T_END)requestAnimationFrame(frame);else{cv.remove();fx.energy=0;svg.style.filter='';}
+  })(t0);
+}
 // ---------- summon ----------
 let summonCount=0,lastSummon=0;
 function summon(){
   const now=Date.now();summonCount=now-lastSummon<3300?summonCount+1:1;lastSummon=now;
-  tmpClass(stage(),'charge',1300);setTimeout(()=>{burst(palette(S).acc);tmpClass(stage(),'shake',500);},900);
+  summonFX();
   if(summonCount>=N11){summonCount=0;setTimeout(()=>{toast('The circle overloads…');openGame('misfire');},1400);return;}
   maybeElsewhere();
 }
@@ -1264,12 +1427,14 @@ $('#effects').innerHTML=EFFECTS.map(k=>chip(k,'effects',k)).join('');
 $('#buffs').innerHTML=BUFFS.map(k=>chip(k,'buffs',k)).join('');
 $('#debuffs').innerHTML=DEBUFFS.map(k=>chip(k,'debuffs',k)).join('');
 $('#motions').innerHTML=Object.entries(MOTIONS).map(([k,v])=>chip(v,'motion',k)).join('');
+$('#trads').innerHTML=Object.entries(TRADS).map(([k,v])=>chip(v.name,'trad',k)).join('');
 $('#purpose').innerHTML=Object.keys(PURPOSES).map(k=>`<option>${k}</option>`).join('');
 $('#script').innerHTML=Object.entries(SCRIPTS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
 
 document.addEventListener('click',e=>{
   const c=e.target.closest('.chip[data-g]');
   if(c){const g=c.dataset.g,v=c.dataset.v;
+    if(g==='trad'){commit(()=>{S.trad=v;if(TRADS[v].script)S.script=TRADS[v].script;});const seen=store.get('trads',{});seen[v]=1;store.set('trads',seen);if(TRAD_KEYS.every(k=>seen[k]))egg('pilgrim','Every tradition visited.');return;}
     if(g==='motion'){setMotion(v);
       const seen=store.get('motions',{});seen[v]=1;store.set('motions',seen);if(MOTION_KEYS.every(m=>seen[m]))egg('depth','Every way a circle can move.');return;} // motion needs no rebuild
     commit(()=>{if(g==='element'){S.element=v;fx.pal=null;}else{const a=S[g],i=a.indexOf(v);i>=0?a.splice(i,1):a.push(v);}});return;}
@@ -1296,7 +1461,7 @@ $('#seed').addEventListener('change',()=>{
   commit(()=>{S.seed=v;fx.pal=null;
     if(v==='42')Object.assign(S,{element:'Water',purpose:'Divination',effects:['Heal'],buffs:['Regen'],debuffs:[],power:N3,rings:N5,sym:N7,points:N7,glow:0,fractal:0,style:'linework',script:'celestial',hue:null});
     if(v==='1138')fx.pal={ink:'#9aa0a8',bg:'#f7f7f7'};});
-  if(v==='42')egg('dontpanic',"Don't panic.");
+  if(v==='42')egg('dontpanic','The answer was never the hard part. Breathe.');
   if(v==='404'){egg('notfound','Circle not found.');tmpClass(stage(),'cursed',4200);}
   if(v==='1138')egg('thx','Everything is white and calm.');
 });
@@ -1327,7 +1492,7 @@ document.addEventListener('keydown',e=>{
   if(inField)return;
   const k=e.key.length===1?e.key.toLowerCase():e.key;
   if(k===KONAMI[kpos]){kpos++;if(kpos===KONAMI.length){kpos=0;openGame('seal');return;}}else kpos=k===KONAMI[0]?1:0;
-  if(e.key.length===1&&!e.metaKey&&!e.ctrlKey){buf=(buf+e.key.toLowerCase()).replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').slice(-N42);const hit=TYPED.find(w=>buf.endsWith(w));if(hit){buf='';speak(hit);}}
+  if(e.key.length===1&&!e.metaKey&&!e.ctrlKey){buf=(buf+e.key.toLowerCase()).replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').slice(-N42);const hit=TYPED.find(w=>buf.endsWith(w)&&(buf.length===w.length||buf[buf.length-w.length-1]===' '));if(hit){buf='';speak(hit);}}
 });
 
 // ---------- go ----------
