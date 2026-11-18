@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Make anime-style magic circles in 2D and 3D. Free to play, with Pro video and 3D exports.">
+<meta property="og:title" content="Circle Maker">
+<meta property="og:description" content="Summon your own anime-style magic circle in 2D and 3D, with hidden secrets and a little philosophy.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://wdbphoto.github.io/Spell_Casting_Circles/">
+<meta property="og:image" content="https://wdbphoto.github.io/Spell_Casting_Circles/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A glowing purple magic circle beside the words Circle Maker: summon your own magic circle">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%27-12 -12 24 24%27%3E%3Cpath fill=%27%23c9a8ff%27 d=%27M0-11L2.6-6.3 7.8-7.8 6.3-2.6 11 0 6.3 2.6 7.8 7.8 2.6 6.3 0 11-2.6 6.3-7.8 7.8-6.3 2.6-11 0-6.3-2.6-7.8-7.8-2.6-6.3Z%27/%3E%3C/svg%3E">
 </head>
 <body>
@@ -1133,12 +1142,47 @@ function openCodex(){
   <div class="sigils">${Array.from({length:N72},(_,i)=>sg[i+1]?`<div class="sig found" title="${sg[i+1]}">${i+1}</div>`:`<div class="sig">${i+1}</div>`).join('')}</div>`);
   $('#cclose').onclick=closeModal;
 }
+// ---------- share window: a share card plus one-click posting ----------
+const SITE_URL='https://wdbphoto.github.io/Spell_Casting_Circles/'; // the public site; shared links always open here
+function wrapLines(ctx,text,maxW){const words=text.split(' '),lines=[];let line='';for(const w of words){const t=line?line+' '+w:w;if(ctx.measureText(t).width>maxW&&line){lines.push(line);line=w;}else line=t;}if(line)lines.push(line);return lines;}
+async function makeShareCard(){
+  const W=1080,P=palette(S),c=document.createElement('canvas');c.width=c.height=W;const x=c.getContext('2d');
+  const light=S.style==='grimoire'||!!(fx.pal&&fx.pal.ink),ink=light?'#2a1d10':'#f1f2f8',soft=light?'rgba(42,29,16,.68)':'rgba(241,242,248,.68)';
+  x.fillStyle=P.bg;x.fillRect(0,0,W,W);
+  const circ=760,cx=(W-circ)/2,cy=56;
+  const c3=$('#c3d');
+  if(v3.on&&c3&&c3.width){x.drawImage(c3,cx,cy,circ,circ);}
+  else{const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svgString(false,circ*2));});x.drawImage(img,cx,cy,circ,circ);}
+  x.textAlign='center';x.fillStyle=ink;x.font='800 52px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';
+  x.fillText($('#spellName').textContent,W/2,cy+circ+70,W-120);
+  x.font='italic 30px Georgia,"Times New Roman",serif';x.fillStyle=soft;
+  const q=wrapLines(x,'“'+$('#quote').textContent+'”',W-200).slice(0,2);q.forEach((l,i)=>x.fillText(l,W/2,cy+circ+122+i*38));
+  x.font='600 24px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';x.fillStyle=soft;
+  x.fillText('Make your own · '+SITE_URL.replace(/^https:\/\//,'').replace(/\/$/,''),W/2,W-34);
+  return await new Promise(r=>c.toBlob(r,'image/png'));
+}
 function openShare(){
-  const code=encode(S);try{location.replace('#'+code);}catch(e){}
-  showModal(`<div class="mhead"><div><h2>Share this circle</h2><div class="psub">Anyone who pastes this code into the Seed box gets this exact circle. The page link carries it too.</div></div><button class="btn" id="sclose">Close</button></div>
-  <div style="display:flex;gap:8px"><input class="inc" id="scode" readonly aria-label="Circle code"><button class="btn primary" id="scopy">Copy</button></div>`);
-  const i=$('#scode');i.value=code;$('#sclose').onclick=closeModal;
-  $('#scopy').onclick=()=>{try{navigator.clipboard.writeText(code).then(()=>toast('Circle code copied.'),()=>{i.focus();i.select();toast('Press Ctrl+C or ⌘C to copy.');});}catch(e){i.focus();i.select();}};
+  const code=encode(S),link=SITE_URL+'#'+code,name=$('#spellName').textContent;
+  try{location.replace('#'+code);}catch(e){}
+  const text=`I summoned “${name}” in Circle Maker ✨ Make your own magic circle:`,u=encodeURIComponent(link),t=encodeURIComponent(text);
+  const NETS=[['X',`https://twitter.com/intent/tweet?text=${t}&url=${u}`],['Facebook',`https://www.facebook.com/sharer/sharer.php?u=${u}`],['Reddit',`https://www.reddit.com/submit?url=${u}&title=${encodeURIComponent(name+' · a magic circle I made')}`],
+    ['Bluesky',`https://bsky.app/intent/compose?text=${encodeURIComponent(text+' '+link)}`],['Threads',`https://www.threads.net/intent/post?text=${encodeURIComponent(text+' '+link)}`],['LinkedIn',`https://www.linkedin.com/sharing/share-offsite/?url=${u}`],
+    ['WhatsApp',`https://wa.me/?text=${encodeURIComponent(text+' '+link)}`],['Pinterest',`https://pinterest.com/pin/create/button/?url=${u}&description=${t}`]];
+  showModal(`<div class="mhead"><div><h2>Share this circle</h2><div class="psub">Anyone who opens the link sees this exact circle.</div></div><button class="btn" id="sclose">Close</button></div>
+  <div style="display:grid;place-items:center;background:var(--card);border-radius:12px;padding:10px;min-height:120px"><img id="scard" alt="Share card for ${esc(name)}" style="width:min(300px,100%);aspect-ratio:1;border-radius:8px;display:block" hidden><div id="scardmsg" class="psub" style="margin:0">Making your share card…</div></div>
+  <div class="xrow">${NETS.map(([n,href])=>`<a class="btn" href="${esc(href)}" target="_blank" rel="noopener" style="text-decoration:none">${n}</a>`).join('')}</div>
+  <div class="xrow"><button class="btn primary" id="ssave">Save image</button>${typeof navigator.share==='function'?'<button class="btn primary" id="snative">Share…</button>':''}</div>
+  <div class="xnote">Instagram and TikTok don’t accept links from websites: save the image and post it from the app, with the link in your bio or caption.</div>
+  <label class="lbl" for="slink">Link</label><div style="display:flex;gap:8px"><input class="inc" id="slink" readonly aria-label="Share link"><button class="btn" data-copy="slink">Copy</button></div>
+  <label class="lbl" for="scode">Circle code, for the Seed box</label><div style="display:flex;gap:8px"><input class="inc" id="scode" readonly aria-label="Circle code"><button class="btn" data-copy="scode">Copy</button></div>`);
+  $('#slink').value=link;$('#scode').value=code;$('#sclose').onclick=closeModal;
+  document.querySelectorAll('#modal [data-copy]').forEach(b=>b.onclick=()=>{const i=$('#'+b.dataset.copy),what=b.dataset.copy==='slink'?'Link':'Circle code';
+    try{navigator.clipboard.writeText(i.value).then(()=>toast(`${what} copied.`),()=>{i.focus();i.select();toast('Press Ctrl+C or ⌘C to copy.');});}catch(e){i.focus();i.select();}});
+  let card=null;const cardP=makeShareCard().then(b=>{card=b;const im=$('#scard');if(im&&b){im.src=URL.createObjectURL(b);im.hidden=false;$('#scardmsg').hidden=true;}return b;}).catch(()=>{const m=$('#scardmsg');if(m)m.textContent='The share card could not be made. The link still works.';return null;});
+  $('#ssave').onclick=async()=>{const b=card||await cardP;if(b)saveFile(`${fileBase()}-share.png`,b);};
+  const nb=$('#snative');if(nb)nb.onclick=async()=>{const b=card||await cardP,file=b&&new File([b],`${fileBase()}.png`,{type:'image/png'});
+    const data=file&&navigator.canShare&&navigator.canShare({files:[file]})?{files:[file],title:name,text:text+' '+link}:{title:name,text,url:link};
+    try{await navigator.share(data);}catch(e){if(e&&e.name!=='AbortError')toast('Sharing is not available here. Copy the link instead.');}};
 }
 
 // ---------- hidden games ----------
