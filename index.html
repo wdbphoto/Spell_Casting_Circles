@@ -236,6 +236,8 @@ const ALPH='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 function newSeed(){let s='';for(let i=0;i<9;i++){s+=ALPH[Math.random()*ALPH.length|0];if(i===2||i===5)s+='-';}return s;}
 const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+// yield to the page without timer throttling, so long exports keep their speed in a background tab
+const nextTick=()=>new Promise(r=>{const c=new MessageChannel();c.port1.onmessage=()=>r();c.port2.postMessage(0);});
 // 2D affine matrices [a,b,c,d,e,f], same meaning as SVG matrix()
 const M={id:()=>[1,0,0,1,0,0],
   mul:(m,n)=>[m[0]*n[0]+m[2]*n[1],m[1]*n[0]+m[3]*n[1],m[0]*n[2]+m[2]*n[3],m[1]*n[2]+m[3]*n[3],m[0]*n[4]+m[2]*n[5]+m[4],m[1]*n[4]+m[3]*n[5]+m[5]],
@@ -1350,12 +1352,14 @@ async function recordVideo(secs,cam,size,prog,watermark=false){
     return{blob:new Blob(chunks,{type:mime.split(';')[0]}),ext:mime.includes('mp4')?'mp4':'webm'};
   }finally{eng.dispose();}
 }
+// Synchronous PNG encode: async toBlob can be held back about a second per frame when the browser deprioritises the tab
+function canvasPng(c){const u=c.toDataURL('image/png'),bin=atob(u.slice(u.indexOf(',')+1)),a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type:'image/png'});}
 async function pngSequence(secs,cam,size,prog){
   const{eng,cv}=await makeEngine(size,cam,true,prog);
   try{
     prog('Loading the zip tool…');await loadScript(JSZIP_URL);
     const fps=30,N=Math.round(secs*fps),zip=new JSZip(),dir=zip.folder(fileBase()+'-png'),t3=v3.t;
-    for(let i=0;i<N;i++){eng.frame(t3+i/fps*ui.speed);const b=await new Promise(r=>cv.toBlob(r,'image/png'));dir.file(`${fileBase()}_${String(i).padStart(4,'0')}.png`,b);if(i%3===0){prog(`Rendering frame ${i+1} of ${N}…`,i/N);await sleep(0);}}
+    for(let i=0;i<N;i++){eng.frame(t3+i/fps*ui.speed);const b=canvasPng(cv);dir.file(`${fileBase()}_${String(i).padStart(4,'0')}.png`,b);if(i%3===0){prog(`Rendering frame ${i+1} of ${N}…`,i/N);await nextTick();}}
     dir.file('README.txt',`Circle Maker PNG sequence\n${N} frames, ${fps} fps, ${size} x ${size}, transparent background.\nPremiere Pro: File > Import, pick the first frame, tick "Image Sequence".\nAfter Effects: File > Import > File, tick "PNG Sequence".\nDaVinci Resolve: drag the folder into the Media Pool.\nCircle code: ${encode(S)}\n`);
     prog('Zipping frames…',1);return await zip.generateAsync({type:'blob'});
   }finally{eng.dispose();}
