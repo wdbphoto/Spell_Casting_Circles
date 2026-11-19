@@ -628,15 +628,46 @@ class Engine{
     this.resize(this.w,this.h);
   }
   resize(w,h){this.w=w;this.h=h;this.r.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(this.composer)this.composer.setSize(w,h);}
-  frame(t){const mo=S.motion||'none',p=((t/MOTION_T)%1+1)%1,L=this.groups.length;
+  frame(t){const mo=S.motion||'none',p=((t/MOTION_T)%1+1)%1,L=this.groups.length,burn=mo==='burn',px=this.h*this.r.getPixelRatio()/(2*Math.tan(this.camera.fov*Math.PI/360));
     this.groups.forEach((g,i)=>{const d=g.userData;g.rotation.z=d.dir?-Math.sign(d.dir)*Math.abs(d.dir)*2*Math.PI*t/d.dur:0;applyMotion(g,mo,p,L>1?i/(L-1):0,i,t);
-      if(d.phyllo)g.children.forEach((sg,j)=>{const q=phyllo(d.phyllo,j,t);sg.position.set(q.x,-q.y,0);sg.scale.setScalar(q.s);});});
+      if(d.phyllo)g.children.forEach((sg,j)=>{const q=phyllo(d.phyllo,j,t);sg.position.set(q.x,-q.y,0);sg.scale.setScalar(q.s);});
+      else if(burn||d.fire){if(burn&&d.fire===undefined)d.fire=makeFire(g);if(d.fire){const u=d.fire.material.uniforms,mu=d.mats[0]&&d.mats[0].userData.u;d.fire.visible=burn;u.uTime.value=t;u.uPx.value=px;u.uDis.value=burn&&mu?mu.uDissolve.value:0;u.uScale.value=mu?mu.uScale.value:.02;}}});
     if(this.sfx&&!this.sfx.update(performance.now())){this.sfx.dispose();this.sfx=null;}
     const en=fx.energy||0;if(this.bloom)this.bloom.strength=S.glow*.11*(1+en*1.2);if(this.root)this.root.scale.setScalar(1+en*.06);if(this.composer)this.composer.render();else this.r.render(this.scene,this.camera);}
   startSummon(){if(this.sfx)this.sfx.dispose();this.sfx=new SummonFX3D(this);}
   disposeScene(){if(this.sfx){this.sfx.dispose();this.sfx=null;}if(!this.scene)return;this.scene.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose();});this.scene=null;}
   dispose(){this.disposeScene();this.r.dispose();this.r.forceContextLoss();}
 }
+// ---------- Burn fire: flames and embers born on each ring's burning edge (same noise as the dissolve), deterministic in time so videos match ----------
+const FIRE_VS=`attribute vec4 aSeed;uniform float uTime,uDis,uScale,uSize,uPx;varying float vAge;varying float vA;varying float vEm;
+${NOISE_GLSL}
+void main(){float ph=aSeed.x,r1=aSeed.y,r2=aSeed.z,em=aSeed.w;vEm=em;
+ float rate=em>.5?.42+r2*.25:1.05+r1*.6,cyc=uTime*rate+ph,age=fract(cyc),born=floor(cyc);
+ vec3 o=position;float dn=vn(o*uScale)*.65+vn(o*uScale*3.1)*.35;
+float front=em>.5?(1.-smoothstep(0.,.22,abs(dn-uDis+.04))):(1.-smoothstep(.02,.13,dn-uDis))*smoothstep(uDis-.05,uDis,dn);
+ float on=uDis>0.&&uDis<1.?front:0.;
+ vec3 p=o;float sw=sin(uTime*(5.+r1*4.)+r2*30.+age*6.);
+ if(em>.5){p.z+=age*(260.+r2*420.);p.x+=sw*30.*age+(r1-.5)*90.*age;p.y+=cos(uTime*3.+r1*20.)*30.*age;}
+ else{float h=age*(40.+r2*90.)*(1.+1.4*age);p.z+=h;p.x+=sw*7.*age*age*3.;p.y+=cos(uTime*7.+r1*25.)*7.*age*age*3.;p.xy+=normalize(o.xy+.001)*sin(r1*40.+uTime*9.)*4.*age;}
+ vAge=age;vA=on;vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;
+ float sz=em>.5?(.25+.25*r1)*(.6+.4*sin(uTime*30.+r2*50.)):pow(1.-age,1.3)*(.7+r1*.6);gl_PointSize=on>0.?uSize*sz*uPx/max(1.,-mv.z):0.;}`;
+const FIRE_FS=`uniform sampler2D uTex,uFlame;varying float vAge;varying float vA;varying float vEm;void main(){vec4 t=vEm>.5?texture2D(uTex,gl_PointCoord):texture2D(uFlame,gl_PointCoord);
+ vec3 c=vEm>.5?vec3(1.,.62,.22):(vAge<.15?mix(vec3(1.,.9,.6),vec3(1.,.48,.1),vAge/.15):mix(vec3(1.,.48,.1),vec3(.55,.05,.01),smoothstep(.15,.8,vAge)));
+ float a=vA*smoothstep(0.,.07,vAge)*pow(1.-vAge,vEm>.5?.8:1.6)*(vEm>.5?1.:.7);gl_FragColor=vec4(c*t.rgb*a,t.a*a);}`;
+let flameTex=null;
+function makeFlameTex(){const n=128,c=document.createElement('canvas');c.width=c.height=n;const x=c.getContext('2d');
+  x.filter='blur(5px)';const g=x.createRadialGradient(64,88,2,64,80,46);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.45,'rgba(255,255,255,.55)');g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g;x.beginPath();x.moveTo(64,6);x.bezierCurveTo(78,40,104,62,100,90);x.bezierCurveTo(96,116,32,116,28,90);x.bezierCurveTo(24,62,50,40,64,6);x.fill();return new THREE.CanvasTexture(c);}
+function makeFire(g){
+  const pts=[];g.children.forEach(m=>{const a=m.geometry&&m.geometry.attributes.position;if(a)pts.push(a);});
+  const tot=pts.reduce((n,a)=>n+a.count,0);if(!tot)return null;
+  const N=Math.min(6765,Math.max(610,Math.round(tot*1.6))),E=Math.round(N*.06),pos=new Float32Array((N+E)*3),sd=new Float32Array((N+E)*4);
+  for(let i=0;i<N+E;i++){let k=Math.floor(Math.random()*tot),a=pts[0],j=0;while(k>=pts[j].count){k-=pts[j].count;j++;}a=pts[j];
+    pos[i*3]=a.getX(k);pos[i*3+1]=a.getY(k);pos[i*3+2]=a.getZ(k);sd[i*4]=Math.random();sd[i*4+1]=Math.random();sd[i*4+2]=Math.random();sd[i*4+3]=i>=N?1:0;}
+  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setAttribute('aSeed',new THREE.Float32BufferAttribute(sd,4));
+  glowTex=glowTex||softTex('glow');
+  const mat=new THREE.ShaderMaterial({uniforms:{uTime:{value:0},uDis:{value:0},uScale:{value:.02},uSize:{value:62},uPx:{value:1},uTex:{value:glowTex},uFlame:{value:flameTex=flameTex||makeFlameTex()}},vertexShader:FIRE_VS,fragmentShader:FIRE_FS,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false});
+  const p=new THREE.Points(geo,mat);p.name='fire';p.frustumCulled=false;g.add(p);return p;}
 // ---------- 3D summon: soft white-hot pulse, golden-spiral pixie dust and fractal lightning, inside the scene ----------
 let glowTex=null,ringTex=null;
 function softTex(kind){const n=128,c=document.createElement('canvas');c.width=c.height=n;const x=c.getContext('2d'),g=x.createRadialGradient(n/2,n/2,0,n/2,n/2,n/2);
